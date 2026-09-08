@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  /* A warm, faint blend of the brand's own green/gold/terracotta (see
+     tailwind.config.ts's `brand.mist`) instead of a flat gray backdrop —
+     cards and the header/footer keep their own explicit white/brand
+     backgrounds, so they still stand out clearly against this. */
+  @apply bg-brand-mist text-slate-900;
+}

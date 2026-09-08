@@ -1,0 +1,141 @@
+"use client";
+
+import { useActionState } from "react";
+import {
+  createEventFormAction,
+  updateEventFormAction,
+  type EventFormState,
+} from "@/server/actions/event-actions";
+
+const inputClass =
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand";
+const labelClass = "block text-sm font-medium text-slate-700";
+
+const initialState: EventFormState = {};
+
+// One field set to a UI stubs. `mode: "create"` posts a brand-new event
+// (unpublished by default — see createEvent() in event-service.ts);
+// `mode: "edit"` updates one in place and only replaces the image if a new
+// file was actually chosen (existing image stays otherwise).
+export function EventForm({
+  mode,
+  eventId,
+  defaults,
+  currentImageUrl,
+}: {
+  mode: "create" | "edit";
+  eventId?: string;
+  defaults?: {
+    title: string;
+    description: string;
+    location: string;
+    eventDate: string; // "YYYY-MM-DD" or ""
+  };
+  currentImageUrl?: string | null;
+}) {
+  const action = mode === "edit" && eventId ? updateEventFormAction.bind(null, eventId) : createEventFormAction;
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="space-y-4">
+      {state.error && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {state.error}
+        </p>
+      )}
+      {state.success && (
+        <p className="rounded-md bg-status-active/10 px-3 py-2 text-sm text-status-active">
+          {mode === "create" ? "Event created as a draft — publish it when ready." : "Saved."}
+        </p>
+      )}
+
+      <div>
+        <label htmlFor="title" className={labelClass}>
+          Title
+        </label>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          defaultValue={defaults?.title}
+          placeholder="e.g. Nairobi Auto Show 2026"
+          className={inputClass}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="eventDate" className={labelClass}>
+            Event date <span className="font-normal text-slate-400">(optional)</span>
+          </label>
+          <input
+            id="eventDate"
+            name="eventDate"
+            type="date"
+            defaultValue={defaults?.eventDate}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label htmlFor="location" className={labelClass}>
+            Location <span className="font-normal text-slate-400">(optional)</span>
+          </label>
+          <input
+            id="location"
+            name="location"
+            type="text"
+            defaultValue={defaults?.location}
+            placeholder="e.g. KICC, Nairobi"
+            className={inputClass}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="description" className={labelClass}>
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          required
+          rows={5}
+          defaultValue={defaults?.description}
+          placeholder="What's happening, who it's for, why buyers/sellers should come…"
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="image" className={labelClass}>
+          Event image {mode === "edit" && <span className="font-normal text-slate-400">(leave empty to keep current)</span>}
+        </label>
+        {currentImageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- a tiny admin-only preview thumbnail, not worth next/image's optimization pipeline
+          <img
+            src={currentImageUrl}
+            alt=""
+            className="mb-2 h-24 w-36 rounded-md border border-slate-200 object-cover"
+          />
+        )}
+        <input
+          id="image"
+          name="image"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-brand/90"
+        />
+        <p className="mt-1 text-xs text-slate-400">JPEG, PNG, or WebP — up to 5MB.</p>
+      </div>
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-60"
+      >
+        {pending ? "Saving…" : mode === "create" ? "Create event" : "Save changes"}
+      </button>
+    </form>
+  );
+}

@@ -1,0 +1,1067 @@
+// ============================================================================
+// AI Car Marketplace — Prisma Schema (Phase 1: Foundation)
+//
+// Scope of this phase: Users/Roles, Car Listings, Car Images, listing
+// lifecycle, and the SOLD workflow. Payments and Featured Subscriptions are
+// intentionally NOT modeled yet (Phase 4) — but seller_id / listing_id
+// relations here are designed so those tables can be added later purely by
+// addition (new tables + FKs), with zero changes to existing tables.
+//
+// Migration policy: every change to this file must go through
+// `prisma migrate dev` (dev/staging) and `prisma migrate deploy`
+// (production). Never hand-edit the database schema directly.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Use a separate, non-pooled URL for migrations when running behind
+  // a connection pooler (e.g. Neon/PgBouncer) in production.
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+  // Full seller access, plus two narrow admin-delegated powers: viewing the
+  // seller directory (read-only — no status changes) and reviewing PENDING
+  // listings (approve / send back for edits). See requireListingModerationAccess
+  // in ownership.ts and getSellersForModerator/getPendingListingsForModeration
+  // in admin-service.ts — nothing else in the (admin) area is reachable by
+  // this role.
+  MODERATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING
+  ACTIVE
+  SOLD
+  ARCHIVED
+}
+
+enum TransmissionType {
+  MANUAL
+  AUTOMATIC
+  CVT
+  SEMI_AUTOMATIC
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  HYBRID
+  ELECTRIC
+  LPG
+}
+
+enum ListingConditionType {
+  BRAND_NEW
+  FOREIGN_USED
+  LOCALLY_USED
+}
+
+// A mandatory, seller-declared choice, distinct from the (optional)
+// ListingConditionType above — "how was this car acquired into the
+// country," not "how new/used does it look." Surfaced as a small green tag
+// on the listing's cover photo and in its details (see ImportStatusBadge).
+enum ImportStatus {
+  LOCALLY_USED
+  FRESH_IMPORT
+}
+
+// Header "Find a Car" dropdown filter + the listing form's mandatory
+// category select — a coarse vehicle class, distinct from the free-text
+// `bodyType` field (which stays whatever a seller types, e.g. "Sedan").
+// @default(CARS) exists only so the migration can backfill existing rows
+// (this field is NOT optional); the create form still requires an explicit
+// selection with no pre-checked option, same as ImportStatus.
+enum VehicleCategory {
+  CARS
+  SUV_TRUCKS
+  LORRIES_BUSES
+  EV_CARS
+  EV_BIKES
+}
+
+// Phase 4 additions below (enums + 3 models) — all purely additive, no
+// existing table/column/enum touched.
+
+enum FeaturedSubscriptionStatus {
+  PENDING // created, payment not yet confirmed
+  ACTIVE // payment verified, currently featured (subject to expiresAt)
+  EXPIRED // expiresAt has passed — set by the expiry sweep, not by request
+  CANCELLED // seller/admin cancelled before expiry
+  PAYMENT_FAILED // provider reported failure/cancellation
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentProvider {
+  MPESA
+}
+
+// ---------------------------------------------------------------------------
+// Users & Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String     @id @default(cuid())
+  name          String
+  email         String     @unique
+  emailVerified DateTime?
+  phone         String?
+  passwordHash  String? // null when the user only uses an OAuth provider
+  role          UserRole   @default(BUYER)
+  status        UserStatus @default(ACTIVE)
+
+  // Country field kept intentionally simple (ISO 3166-1 alpha-2) rather than
+  // a full geo model — enough to unlock multi-market later without a schema
+  // change; defaults to Kenya for the initial launch market.
+  country String @default("KE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  accounts               Account[]
+  sessions               Session[]
+  listings               CarListing[]            @relation("SellerListings")
+  favorites              Favorite[]
+  inquiriesSent          Inquiry[]               @relation("BuyerInquiries")
+  inquiriesReceived      Inquiry[]               @relation("SellerInquiries")
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  auditLogEntries        AuditLog[]              @relation("AuditActor")
+  statusChangesPerformed ListingStatusHistory[]  @relation("StatusChangedBy")
+  passwordResetTokens    PasswordResetToken[]
+  featuredSubscriptions  FeaturedSubscription[]
+  paymentTransactions    PaymentTransaction[]
+  eventsCreated          Event[]
+  csrInitiativesCreated  CsrInitiative[]
+  servicesCreated        Service[]
+  insurancePoliciesCreated InsurancePolicy[]
+  couponsCreated           Coupon[]
+  couponRedemptions        CouponRedemption[]
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+// Auth.js (NextAuth) adapter models — standard shape required by the Prisma
+// adapter. Kept here so authentication is backed by the same Postgres
+// database rather than a third-party auth store.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Phase 2 addition — purely additive (new table only, no changes to any
+// existing table/column). Backs the "forgot password" flow. Deliberately
+// separate from Auth.js's own VerificationToken model above (that one is
+// reserved for Auth.js's built-in email/magic-link flows, which this app
+// doesn't use yet) so the two concerns never collide on the same table.
+//
+// Only a SHA-256 hash of the raw token is ever stored — the raw token lives
+// only in the emailed/logged reset link, never at rest in the database, so a
+// database read alone can't be used to reset a password.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Car Listings
+// ---------------------------------------------------------------------------
+
+model CarListing {
+  id       String @id @default(cuid())
+  sellerId String
+
+  // SEO-friendly identifier, e.g. "2019-toyota-axio-nairobi-abc123"
+  slug String @unique
+
+  title        String
+  make         String
+  model        String
+  year         Int
+  price        Decimal               @db.Decimal(12, 2)
+  currency     String                @default("KES")
+  mileage      Int?
+  transmission TransmissionType?
+  fuelType     FuelType?
+  engineSize   String? // free text, e.g. "1500cc" — normalize later if needed
+  bodyType     String?
+  color        String?
+  location     String? // free text city/area for Phase 1; structured later
+  description  String?               @db.Text
+  condition    ListingConditionType?
+
+  // Mandatory — every listing must declare exactly one. No default: the
+  // seller must actively choose (createListingSchema requires it), same
+  // "no silent fallback" contract as title/make/model.
+  importStatus ImportStatus
+
+  // Mandatory, unlike importStatus — DOES carry a @default so the migration
+  // can backfill pre-existing rows (createListingSchema still requires an
+  // explicit choice at creation time regardless; the default only ever
+  // applies to rows that predate this column). Backs the header's "Find a
+  // Car" dropdown filter and getRelatedListings()'s "Other Related
+  // Vehicles" matching.
+  category VehicleCategory @default(CARS)
+
+  status ListingStatus @default(DRAFT)
+
+  // Phase 3 addition — backs the "Total Listing Views" dashboard card.
+  // Incremented on public detail-page views (getPublicListingBySlug).
+  // Default 0 backfills existing rows safely; no data loss.
+  viewCount Int @default(0)
+
+  // Denormalized convenience timestamp for the most recent SOLD event.
+  // Source of truth for "was this sold and when" remains
+  // ListingStatusHistory — this field exists purely so listing pages and
+  // dashboard queries don't need a join for the common case.
+  soldAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller                User                   @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Restrict)
+  images                CarImage[]
+  favorites             Favorite[]
+  inquiries             Inquiry[]
+  statusHistory         ListingStatusHistory[]
+  // Phase 4: every subscription (pending, active, expired, renewed) this
+  // listing has ever had — "is this listing currently featured" is NEVER
+  // read off a stored boolean; see isListingCurrentlyFeatured() /
+  // getFeaturedListingIds() in featured-service.ts, which always compute it
+  // live from this relation's status + expiresAt.
+  featuredSubscriptions FeaturedSubscription[]
+
+  @@index([sellerId])
+  // Default/"newest" sort — status is in the WHERE of every public query,
+  // createdAt is the default ORDER BY, so this index serves both together.
+  @@index([status, createdAt])
+  // Replaces the old [make, model] index: every real query filters by
+  // status too (public browsing, admin moderation), so a status-led
+  // composite serves the make/model filter better than a status-free one
+  // ever did — there was no query in this codebase using [make, model]
+  // without a status filter alongside it.
+  @@index([status, make, model])
+  // Phase 5: backs price/year/mileage range filters and their matching sort
+  // options (price_asc/price_desc, year_desc, mileage_asc) — one composite
+  // per field actually range-filtered or sorted on, not one per field that
+  // merely exists on the model.
+  @@index([status, price])
+  @@index([status, year])
+  @@index([status, mileage])
+  // Backs the header's per-category counts (groupBy) and the /cars
+  // `?category=` filter — same "status-led composite" reasoning as the
+  // indexes above.
+  @@index([status, category])
+  @@map("car_listings")
+}
+
+model CarImage {
+  id           String  @id @default(cuid())
+  listingId    String
+  // Reference only — actual binary lives in object storage (Phase 3).
+  imageUrl     String
+  storageKey   String? // provider-specific key, useful for deletion later
+  displayOrder Int     @default(0)
+  isPrimary    Boolean @default(false)
+  altText      String?
+
+  createdAt DateTime @default(now())
+
+  listing CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@map("car_images")
+}
+
+// Append-only audit trail of listing status transitions. This is what makes
+// "preserve historical record of the sale" (spec Section 3) durable even if
+// a listing is later restored from SOLD back to ACTIVE.
+model ListingStatusHistory {
+  id          String         @id @default(cuid())
+  listingId   String
+  fromStatus  ListingStatus?
+  toStatus    ListingStatus
+  changedById String?
+  note        String?
+  createdAt   DateTime       @default(now())
+
+  listing   CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  changedBy User?      @relation("StatusChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([listingId])
+  @@map("listing_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Buyer-facing features
+// ---------------------------------------------------------------------------
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  // The unique constraint below already prevents a duplicate (userId,
+  // listingId) pair and IS a usable index for "does user X favorite listing
+  // Y" lookups — but its leading column is userId, so it doesn't serve
+  // "how many/which users favorited listing Y" (favorite counts, the
+  // sold-listing notification fan-out) efficiently. This one does.
+  @@index([listingId])
+  @@map("favorites")
+}
+
+// Phase 1 shipped `status` as a plain String specifically flagged as "enum
+// candidate later" — this is that later. NEW/READ/REPLIED/CLOSED per the
+// Phase 6 spec.
+enum InquiryStatus {
+  NEW
+  READ
+  REPLIED
+  CLOSED
+}
+
+model Inquiry {
+  id          String  @id @default(cuid())
+  listingId   String
+  // Not nullable at the DB level (kept flexible for a possible future
+  // guest-inquiry mode), but every inquiry created by this phase's code
+  // always sets it — createInquiry() requires authentication, full stop.
+  buyerUserId String?
+  // Denormalized from listing.sellerId at creation time, server-derived
+  // only — never trusted from the client. This is what lets "seller's own
+  // inquiries" be a plain `WHERE sellerId = me` query instead of a join
+  // through CarListing on every read.
+  sellerId    String
+
+  // name/email/phone are a snapshot of the buyer's account details AT THE
+  // TIME of the inquiry (server-derived from the session, never
+  // client-submitted) — deliberately not a live join to User, so the
+  // seller's record of "who contacted me and how to reach them" survives
+  // the buyer later changing their email/phone or deleting their account.
+  name    String
+  email   String
+  phone   String?
+  message String        @db.Text
+  status  InquiryStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listing CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer   User?      @relation("BuyerInquiries", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  // Restrict, not Cascade — consistent with CarListing.seller: a user's
+  // account is never hard-deleted while it has dependent business records
+  // (Phase 1's DEACTIVATED-status-not-delete policy). In practice a seller
+  // with any listings already can't be deleted (CarListing.seller is
+  // Restrict too, and inquiries only exist for listings), so this rarely
+  // triggers independently — it's here for consistency, not because it's
+  // expected to fire often.
+  seller  User       @relation("SellerInquiries", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  @@index([listingId])
+  // Backs "view inquiries only for their own listings", optionally
+  // filtered/sorted by status — the seller inquiry dashboard's one query.
+  @@index([sellerId, status])
+  @@map("inquiries")
+}
+
+// ---------------------------------------------------------------------------
+// Platform infrastructure
+// ---------------------------------------------------------------------------
+
+// title/message are the human-readable copy, generated once at write time
+// by notification-service.ts (see NOTIFICATION_COPY there) — never composed
+// ad hoc by a UI from `type` + payload, so there's exactly one place that
+// decides what a notification says. relatedEntityType/relatedEntityId let a
+// future UI link "New inquiry" straight to /dashboard/inquiries without a
+// join back through `payload`; `payload` itself stays a small, deliberately
+// non-sensitive JSON bag for anything extra a future renderer might want
+// (e.g. a listing title) that doesn't deserve its own column.
+model Notification {
+  id      String @id @default(cuid())
+  userId  String
+  type    String
+  title   String
+  message String
+
+  relatedEntityType String?
+  relatedEntityId   String?
+
+  payload Json?
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([relatedEntityType, relatedEntityId])
+  @@map("notifications")
+}
+
+// One row per (user, channel) preference. Deliberately minimal — "prepare
+// the architecture for future expansion" (spec), not a full per-category
+// matrix yet. emailEnabled/inAppEnabled gate NON-essential notifications
+// only: notification-service.ts's REQUIRED_TYPES set (account status
+// changes, etc.) always sends regardless of this row, since those are
+// operationally/legally necessary, not preference-gated. Missing row ==
+// both channels enabled (the default), so no backfill was needed when this
+// table was introduced — every existing user simply has no row yet.
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+
+  emailEnabled Boolean @default(true)
+  inAppEnabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// Idempotency ledger for scheduled subscription-expiry reminders (7/3/1
+// days before expiresAt). The unique constraint below — not an app-level
+// check-then-act — is what makes "never send the same reminder twice"
+// actually safe under concurrent/duplicate sweep execution: the sweep
+// always tries to INSERT the claim row first, and a unique-constraint
+// violation (already claimed) means skip, atomically, at the database
+// level. See runExpirySweep() in expiry-service.ts.
+model SubscriptionReminder {
+  id             String @id @default(cuid())
+  subscriptionId String
+  reminderType   String // "EXPIRING_7D" | "EXPIRING_3D" | "EXPIRING_1D"
+
+  sentAt DateTime @default(now())
+
+  subscription FeaturedSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, reminderType])
+  @@map("subscription_reminders")
+}
+
+// Append-only. Never updated or deleted by application code.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+  @@map("audit_logs")
+}
+
+model MarketplaceSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("marketplace_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Featured Listings, Subscriptions & Payments (Phase 4)
+// ---------------------------------------------------------------------------
+
+// Catalog of purchasable featured-listing durations. A row here is a *plan*,
+// not a purchase — FeaturedSubscription is the purchase. `active: false`
+// retires a plan without deleting historical subscriptions that reference
+// it (onDelete: Restrict below enforces that at the DB level too).
+model FeaturedPlan {
+  id           String   @id @default(cuid())
+  name         String
+  durationDays Int
+  price        Decimal  @db.Decimal(10, 2)
+  currency     String   @default("KES")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  subscriptions FeaturedSubscription[]
+
+  @@map("featured_plans")
+}
+
+// One purchase attempt/period of featuring a specific listing. A listing
+// accumulates one row per subscription/renewal over time — renewing creates
+// a NEW row rather than mutating an old one, so "View subscription history"
+// (spec §Featured Listing Rules) is just querying this table, no separate
+// history table needed the way ListingStatusHistory exists for listings.
+//
+// "Is this listing featured right now" is NEVER read off a boolean flag —
+// it's always: status == ACTIVE AND expiresAt > now() AND the listing
+// itself is still ACTIVE. See featured-service.ts.
+model FeaturedSubscription {
+  id        String @id @default(cuid())
+  userId    String
+  // Ownership of the FEATURE purchase always matches the listing's own
+  // seller_id — enforced in featured-service.ts (a seller can only ever
+  // feature their own listing), not just implied by this relation.
+  listingId String
+  planId    String
+
+  status FeaturedSubscriptionStatus @default(PENDING)
+
+  // Null until payment is verified successful (see PaymentTransaction).
+  startedAt DateTime?
+  expiresAt DateTime?
+
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  listing   CarListing             @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  plan      FeaturedPlan           @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments  PaymentTransaction[]
+  reminders SubscriptionReminder[]
+
+  @@index([userId])
+  @@index([listingId])
+  // Drives both the expiry sweep's query and the live "is featured" check.
+  @@index([status, expiresAt])
+  @@map("featured_subscriptions")
+}
+
+// Auditable payment record — one row per payment attempt (STK push
+// initiation through final result). Never stores card/PIN/payment
+// credentials; M-Pesa STK Push never exposes those to us in the first
+// place. `metadata` holds the raw provider callback payload (receipt
+// number, phone, transaction date) for audit/support purposes only — it is
+// never trusted as the source of truth for activating a subscription
+// without first matching providerTransactionId to a PENDING row we created
+// ourselves (see handleMpesaCallback in featured-service.ts).
+model PaymentTransaction {
+  id             String  @id @default(cuid())
+  userId         String
+  subscriptionId String?
+
+  provider              PaymentProvider @default(MPESA)
+  // M-Pesa's CheckoutRequestID — set at STK-push-initiation time and used
+  // to match the later async callback to this exact attempt. @unique is
+  // what makes duplicate-callback handling a lookup-and-check instead of a
+  // race: a second callback for the same CheckoutRequestID finds the same
+  // row, already SUCCESS/FAILED, and is a no-op.
+  providerTransactionId String?         @unique
+
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("KES")
+  status   PaymentStatus @default(PENDING)
+
+  initiatedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  metadata Json?
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscription FeaturedSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@map("payment_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Events (admin-posted marketplace/community events)
+// ---------------------------------------------------------------------------
+
+// Admin-authored event listings (car shows, dealer days, promotions) shown
+// on the public /events page. `published` is the only lifecycle control —
+// deliberately no delete action anywhere in the app for this model, same
+// "never destroy a row a human created" convention as every other content
+// type here; an admin who no longer wants an event visible unpublishes it
+// instead. `imageUrl` follows the same local-disk convention as
+// CarImage/storage.ts (see saveEventImage) — swappable to object storage
+// later with no schema change.
+model Event {
+  id          String    @id @default(cuid())
+  title       String
+  description String    @db.Text
+  imageUrl    String?
+  location    String?
+  eventDate   DateTime?
+
+  published Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published, eventDate])
+  @@map("events")
+}
+
+// ---------------------------------------------------------------------------
+// Corporate Social Responsibility (CSR) — admin-authored community
+// initiatives (outreach, food support, support for street-connected
+// children) shown publicly at /csr, with a donation flow mirroring the
+// Featured Listings payment architecture (Phase 4) but kept in its own
+// tables end to end — CsrDonation is a self-contained transaction record
+// (not a row in PaymentTransaction), so this feature never touches the
+// existing featured-listing payment tables. `published` is initiative
+// visibility (draft vs live, same convention as Event); `status` is the
+// initiative's own Active/Completed lifecycle, independent of publish state
+// (an admin can mark a still-published initiative Completed once its goal
+// is met, without unpublishing the story).
+// ---------------------------------------------------------------------------
+
+enum CsrInitiativeStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum CsrDonationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model CsrInitiative {
+  id String @id @default(cuid())
+
+  title   String
+  slug    String @unique
+  // Short teaser for cards/listings — the full narrative lives in `story`.
+  summary String
+  story   String @db.Text
+
+  targetAmount Decimal @db.Decimal(12, 2)
+  // Only ever incremented by handleCsrDonationCallback() in csr-service.ts
+  // after a server-confirmed successful M-Pesa callback — never from a
+  // browser response, and never decremented (matches the spec's explicit
+  // "never mark a donation successful based only on the browser response"
+  // requirement).
+  amountRaised Decimal @default(0) @db.Decimal(12, 2)
+  currency     String  @default("KES")
+
+  status    CsrInitiativeStatus @default(ACTIVE)
+  published Boolean             @default(false)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  coverImageUrl        String?
+  coverImageStorageKey String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  images    CsrInitiativeImage[]
+  donations CsrDonation[]
+
+  @@index([published, status])
+  @@map("csr_initiatives")
+}
+
+// Gallery photos, separate from the initiative's own coverImageUrl — a
+// dedicated table (rather than a JSON array column) so cover-image-style
+// per-file metadata (storageKey for deletion, displayOrder) works the same
+// way CarImage already does for listings.
+model CsrInitiativeImage {
+  id           String  @id @default(cuid())
+  initiativeId String
+  imageUrl     String
+  storageKey   String?
+  displayOrder Int     @default(0)
+  altText      String?
+
+  createdAt DateTime @default(now())
+
+  initiative CsrInitiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@index([initiativeId])
+  @@map("csr_initiative_images")
+}
+
+// One row per donation attempt (STK push initiation through final result) —
+// a self-contained transaction record, deliberately not a reuse of
+// PaymentTransaction (that table is owned end-to-end by featured-service.ts
+// and stays untouched by this feature). donorPhone is required (an STK push
+// needs a phone to push to); donorName/donorEmail are optional, since
+// visitors donate without an account (spec: "Visitors do not need an
+// account to donate"). `status` only ever moves PENDING -> SUCCESS/FAILED
+// from handleCsrDonationCallback() — never set directly from a client
+// request. `providerTransactionId` (M-Pesa's CheckoutRequestID) is
+// @unique so a duplicate/retried callback is a safe no-op, exactly like
+// PaymentTransaction's own idempotency mechanism.
+model CsrDonation {
+  id           String @id @default(cuid())
+  initiativeId String
+
+  donorName  String?
+  donorEmail String?
+  donorPhone String
+
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("KES")
+
+  status                CsrDonationStatus @default(PENDING)
+  provider              PaymentProvider   @default(MPESA)
+  providerTransactionId String?           @unique
+
+  metadata Json?
+
+  initiatedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  initiative CsrInitiative @relation(fields: [initiativeId], references: [id], onDelete: Restrict)
+
+  @@index([initiativeId])
+  @@index([status])
+  @@map("csr_donations")
+}
+
+// ---------------------------------------------------------------------------
+// Orderable Services — admin-managed catalog entries for the existing
+// /services/* pages (Pre-Purchase Inspection, Car Financing, Car Valuation,
+// Car Tracking, Home Repairs), letting a customer order and pay for one
+// online instead of only contacting the marketplace via WhatsApp/phone.
+// `slug` matches one of those pages' existing route segments — each public
+// service page looks up its own Service by that fixed slug and, if one
+// exists and is published, renders an additional order/pay panel
+// (ServiceOrderPanel) alongside its existing static content. If no Service
+// row exists yet for a page (or it's unpublished), that page renders
+// exactly as it always has — this is a purely additive feature, never a
+// replacement for the existing hardcoded page copy.
+// ---------------------------------------------------------------------------
+
+enum ServiceOrderStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Service {
+  id String @id @default(cuid())
+
+  // One of "pre-purchase-inspection" | "car-financing" | "car-valuation" |
+  // "car-tracking" | "home-repairs" — enforced by the admin form's <select>,
+  // not by a DB-level enum, so a new service page can be supported later by
+  // just adding another option there.
+  slug        String  @unique
+  title       String
+  description String  @db.Text
+  price       Decimal @db.Decimal(10, 2)
+  currency    String  @default("KES")
+
+  published Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  images ServiceImage[]
+  orders ServiceOrder[]
+
+  @@map("services")
+}
+
+model ServiceImage {
+  id           String  @id @default(cuid())
+  serviceId    String
+  imageUrl     String
+  storageKey   String?
+  displayOrder Int     @default(0)
+  altText      String?
+
+  createdAt DateTime @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@map("service_images")
+}
+
+// One row per order/payment attempt — a self-contained transaction record,
+// same "one owning table per payment domain" convention as CsrDonation
+// (deliberately not a reuse of PaymentTransaction or CsrDonation). `amount`
+// snapshots the service's price at order time, so a later price change on
+// the Service never retroactively changes what a past order shows as paid.
+// Orders pay through the site's one centralized M-Pesa Till (see
+// mpesa.ts) — every payment surface on the site shares the same
+// MPESA_TILL_NUMBER; this table, not a separate Till, is what identifies
+// the payment as a service order. `status` only ever moves
+// PENDING -> SUCCESS/FAILED from handleServiceOrderCallback(), never from
+// a client request directly.
+model ServiceOrder {
+  id        String @id @default(cuid())
+  serviceId String
+
+  customerName  String?
+  customerEmail String?
+  customerPhone String
+
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("KES")
+
+  status                ServiceOrderStatus @default(PENDING)
+  provider              PaymentProvider    @default(MPESA)
+  providerTransactionId String?            @unique
+
+  metadata Json?
+
+  initiatedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([serviceId])
+  @@index([status])
+  @@map("service_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Car Insurance Cover (admin-managed policy listings for the /services/
+// car-insurance page)
+// ---------------------------------------------------------------------------
+
+// Admin-authored insurance policy offerings shown publicly on
+// /services/car-insurance — same "single flyer image, admin CRUD,
+// published gates public visibility" shape as Event, with a starting price
+// added. `archived` is a distinct, separate lifecycle step from
+// `published` (soft delete, never a hard DELETE — same "never destroy a
+// row a human created" convention as every other admin content type in
+// this app): an archived policy is force-unpublished and hidden from the
+// admin's normal list, but the row itself is kept, so it can always be
+// restored rather than needing to be recreated from scratch.
+model InsurancePolicy {
+  id            String  @id @default(cuid())
+  title         String
+  description   String  @db.Text
+  startingPrice Decimal @db.Decimal(10, 2)
+  currency      String  @default("KES")
+
+  imageUrl        String?
+  imageStorageKey String?
+
+  published Boolean @default(false)
+  archived  Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases InsurancePurchase[]
+
+  @@index([published, archived])
+  @@map("insurance_policies")
+}
+
+enum InsurancePurchaseStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// One row per purchase attempt (STK push initiation through final result) —
+// a self-contained transaction record, same "one owning table per payment
+// domain" convention as CsrDonation/ServiceOrder (deliberately not a reuse
+// of PaymentTransaction). `amount` snapshots the policy's startingPrice at
+// purchase time — taken server-side from this row's own policy lookup,
+// never from client input — so a later price edit on the policy never
+// retroactively changes what a past purchase shows as paid. Pays through
+// the site's one centralized M-Pesa Till (see mpesa.ts) — every payment
+// surface on the site shares the same MPESA_TILL_NUMBER; this table, not a
+// separate Till, is what identifies the payment as an insurance purchase.
+// `status` only ever moves PENDING -> SUCCESS/FAILED from
+// handleInsurancePurchaseCallback(), never from a client request directly.
+model InsurancePurchase {
+  id       String @id @default(cuid())
+  policyId String
+
+  customerName  String?
+  customerEmail String?
+  customerPhone String
+
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("KES")
+
+  status                InsurancePurchaseStatus @default(PENDING)
+  provider              PaymentProvider         @default(MPESA)
+  providerTransactionId String?                 @unique
+
+  metadata Json?
+
+  initiatedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  policy InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+
+  @@index([policyId])
+  @@index([status])
+  @@map("insurance_purchases")
+}
+
+// ---------------------------------------------------------------------------
+// Coupons — admin-managed discount codes for Featured Listings and the
+// orderable Services (Car Tracking, Pre-Purchase Inspection, etc.).
+// Deliberately NOT wired into CSR donations or Insurance purchases anywhere
+// in the app — donateToCsrInitiativeSchema/purchaseInsurancePolicySchema
+// and their service functions have no couponCode field at all, so there is
+// no code path by which a coupon could ever apply to those two flows. That
+// exclusion is enforced by omission, not by a runtime scope check here.
+// ---------------------------------------------------------------------------
+
+// Which payment domain a given redemption was for — purely for admin
+// reporting (a coupon itself isn't restricted to one scope; the same code
+// can be used for both). One coupon may be redeemed for either.
+enum CouponScope {
+  FEATURED_LISTING
+  SERVICE_ORDER
+}
+
+// `usageLimitPerUser` counts against CouponRedemption rows keyed by
+// whichever identity a given checkout has: `userId` for Featured Listings
+// (always authenticated), `customerPhone` for Service orders (anonymous
+// checkout, same as CSR/Insurance elsewhere — but coupons never apply
+// there, see above). `archived` is the only lifecycle control — same soft-
+// delete convention as every other admin content type in this app, never
+// a hard DELETE (see coupon-service.ts's archiveCoupon()).
+model Coupon {
+  id                String  @id @default(cuid())
+  code              String  @unique
+  discountPercent   Int
+  usageLimitPerUser Int     @default(1)
+  archived          Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  redemptions CouponRedemption[]
+
+  @@index([archived])
+  @@map("coupons")
+}
+
+// One row per successful application of a coupon to a real purchase —
+// this, not a counter on Coupon, is what makes "N times per user" actually
+// enforceable (a simple counter can't tell two different users apart).
+// `discountPercent`/`originalAmount`/`discountedAmount` snapshot the coupon
+// and price at redemption time, so a later edit to the coupon's discount
+// never rewrites what a past purchase actually paid.
+// `subscriptionId`/`serviceOrderId` are plain (non-FK) references purely
+// for admin traceability — deliberately not a hard relation, so this
+// table's own lifecycle never has to reason about two different unrelated
+// tables' delete semantics (neither of which is ever hard-deleted anyway).
+model CouponRedemption {
+  id       String      @id @default(cuid())
+  couponId String
+  scope    CouponScope
+
+  // Exactly one of these identifies who redeemed it — see the model
+  // comment above for which flow sets which.
+  userId        String?
+  customerPhone String?
+
+  discountPercent  Int
+  originalAmount   Decimal @db.Decimal(10, 2)
+  discountedAmount Decimal @db.Decimal(10, 2)
+
+  subscriptionId String?
+  serviceOrderId String?
+
+  createdAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([couponId, userId])
+  @@index([couponId, customerPhone])
+  @@map("coupon_redemptions")
+}
