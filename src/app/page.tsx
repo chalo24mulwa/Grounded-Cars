@@ -5,6 +5,7 @@ import { getPublicListings, getMakeModelIndex } from "@/server/services/listing-
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { CarCard } from "@/components/listings/CarCard";
 import { HeroSearchBar } from "@/components/home/HeroSearchBar";
+import { StickySearchBar } from "@/components/home/StickySearchBar";
 import { BecomeSellerButton } from "@/components/auth/BecomeSellerButton";
 import { siteConfig } from "@/config/site";
 
@@ -43,16 +44,18 @@ export default async function HomePage() {
           rendered height (42px utility bar + 52px header) so the two sit
           seamlessly stacked both at rest and while scrolled. Lives outside
           the hero's own overflow-hidden section so it keeps sticking past
-          the hero, all the way through the listings below — the same
-          "always visible" behavior as the header itself, not just within
-          the hero. */}
-      <div className="sticky top-[94px] z-30 w-full border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-sm">
+          the hero, all the way through the listings below. Auto-hides on
+          scroll down / reappears on scroll up (see StickySearchBar) rather
+          than staying permanently visible like the header above it — the
+          header is a handful of persistent nav links, this is a big search
+          card that's worth reclaiming screen space from while browsing. */}
+      <StickySearchBar>
         <div className="mx-auto w-full max-w-6xl px-4 py-3">
           <div className="mx-auto w-full max-w-4xl">
             <HeroSearchBar makeModelIndex={makeModelIndex} />
           </div>
         </div>
-      </div>
+      </StickySearchBar>
 
       <section className="relative w-full overflow-hidden">
         <div className="absolute inset-0">
