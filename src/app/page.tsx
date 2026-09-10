@@ -5,7 +5,11 @@ import { getPublicListings, getMakeModelIndex } from "@/server/services/listing-
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { CarCard } from "@/components/listings/CarCard";
 import { HeroSearchBar } from "@/components/home/HeroSearchBar";
+import { BecomeSellerButton } from "@/components/auth/BecomeSellerButton";
 import { siteConfig } from "@/config/site";
+
+const HERO_SECONDARY_BUTTON_CLASS =
+  "rounded-md bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 backdrop-blur-sm transition hover:bg-white/20";
 
 export const metadata = {
   title: "Home",
@@ -81,12 +85,34 @@ export default async function HomePage() {
             >
               Browse Vehicles
             </Link>
-            <Link
-              href="/best-deals"
-              className="rounded-md bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 backdrop-blur-sm transition hover:bg-white/20"
-            >
-              Best Deals
-            </Link>
+            {/* Same "Sell a Car" destination/role logic as the header nav
+                (HeaderNav.tsx) — a signed-in seller/admin/moderator goes
+                straight to the listing form, a signed-in buyer upgrades to
+                seller first (a real mutation, hence the form submit rather
+                than a plain link), and a signed-out visitor logs in first. */}
+            {session?.user ? (
+              session.user.role === "SELLER" ||
+              session.user.role === "ADMIN" ||
+              session.user.role === "MODERATOR" ? (
+                <Link href="/dashboard/listings/new" className={HERO_SECONDARY_BUTTON_CLASS}>
+                  List Your Car
+                </Link>
+              ) : (
+                <BecomeSellerButton
+                  redirectTo="/dashboard/listings/new"
+                  label="List Your Car"
+                  pendingLabel="Setting up…"
+                  className={HERO_SECONDARY_BUTTON_CLASS}
+                />
+              )
+            ) : (
+              <Link
+                href={`/login?callbackUrl=${encodeURIComponent("/account?autoSeller=1")}`}
+                className={HERO_SECONDARY_BUTTON_CLASS}
+              >
+                List Your Car
+              </Link>
+            )}
           </div>
         </div>
       </section>
