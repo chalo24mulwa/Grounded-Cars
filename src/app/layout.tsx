@@ -5,6 +5,7 @@ import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
 import { UtilityBar } from "@/components/layout/UtilityBar";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
+import { ReviewsCta } from "@/components/layout/ReviewsCta";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <UtilityBar />
         <SiteHeader />
         <main className="flex-1">{children}</main>
+        <ReviewsCta />
         <SiteFooter />
         <WhatsAppButton />
       </body>

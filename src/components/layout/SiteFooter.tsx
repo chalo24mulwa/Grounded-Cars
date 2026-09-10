@@ -48,6 +48,11 @@ export async function SiteFooter() {
               </Link>
             </li>
             <li>
+              <Link href="/reviews" className="transition hover:text-white">
+                Customer Reviews
+              </Link>
+            </li>
+            <li>
               <Link href="/favorites" className="transition hover:text-white">
                 Favorites
               </Link>
