@@ -21,6 +21,17 @@ export async function UtilityBar() {
 
   const displayPhone = siteConfig.contactPhone.replace(/^\+254/, "0");
 
+  // "List Car" (mobile only — see UtilityBarNav) uses the exact same
+  // role-aware destination as the homepage hero's "List Your Car" and the
+  // header's "Sell a Car": staff go straight to the listing form, a signed-in
+  // buyer upgrades first, a signed-out visitor logs in first.
+  const listCarHref =
+    session?.user && (session.user.role === "SELLER" || session.user.role === "ADMIN" || session.user.role === "MODERATOR")
+      ? "/dashboard/listings/new"
+      : !session?.user
+        ? `/login?callbackUrl=${encodeURIComponent("/account?autoSeller=1")}`
+        : undefined;
+
   return (
     // Light grey bar — link text is dark slate by default, with a distinct
     // active state (solid brand-accent pill, same "you are here" signal
@@ -32,6 +43,7 @@ export async function UtilityBar() {
         featuredHref={featuredHref}
         contactPhone={siteConfig.contactPhone}
         displayPhone={displayPhone}
+        listCarHref={listCarHref}
       />
     </div>
   );

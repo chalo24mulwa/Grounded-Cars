@@ -23,7 +23,13 @@ export async function SiteHeader() {
           tailwind.config.ts) — a quiet brand touch on every page without
           competing with the nav content below it. */}
       <div className="h-[3px] w-full bg-gradient-to-r from-brand via-brand-gold to-brand-accent" />
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 py-2 pl-2 pr-4">
+      {/* No justify-between here — on mobile the only visible items are the
+          hamburger button and the logo (the desktop nav is `hidden` and
+          drops out of flex layout entirely), so justify-between would push
+          them to opposite edges instead of keeping them adjacent. The
+          desktop nav pulls itself flush right with its own `md:ml-auto`
+          instead (see HeaderNav.tsx). */}
+      <div className="mx-auto flex max-w-6xl items-center gap-3 py-2 pl-2 pr-4">
         {/* /brand/logo-header.svg is a cropped copy of the shared
             transparent logo (public/brand/logo.svg — still used as-is by
             the footer) — that source file's own viewBox is a mostly-blank
