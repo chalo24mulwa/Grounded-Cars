@@ -49,7 +49,7 @@ Visit `http://localhost:3000/cars` to see the public listing grid, or `/register
 Seed accounts (all password `Password123!`):
 - `seller@example.com` — SELLER role, owns one seeded listing
 - `buyer@example.com` — BUYER role
-- `admin@example.com` — ADMIN role, moderates listings and manages users at `/admin`
+- `admin@carmarketplace.co.ke` — ADMIN role, moderates listings and manages users at `/admin`
 
 Seed also creates three `FeaturedPlan` rows (3/7/30-day boosts). To buy a
 feature, sign in as the seller and go to Dashboard → Featured Listings. Real
