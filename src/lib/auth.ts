@@ -34,6 +34,23 @@ const credentialsSchema = z.object({
   password: z.string().min(8),
 });
 
+// A transient dropped database connection (e.g. Prisma's pooled connection
+// to Neon being closed server-side — see docs/deployment.md's pooling
+// notes) surfaces here as a plain thrown error. Left uncaught, Auth.js's
+// Credentials provider reports that as a generic CredentialsSignin — shown
+// to the user as "Invalid email or password," indistinguishable from an
+// actually-wrong password. One retry gives Prisma's pool a chance to hand
+// back a fresh connection before a sign-in attempt fails for a reason that
+// had nothing to do with the submitted credentials.
+async function withRetryOnce<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error("Transient database error during sign-in, retrying once:", error);
+    return await fn();
+  }
+}
+
 export const { handlers, signIn, signOut, auth, unstable_update: updateSession } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
@@ -49,7 +66,7 @@ export const { handlers, signIn, signOut, auth, unstable_update: updateSession }
 
         const { email, password } = parsed.data;
 
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await withRetryOnce(() => prisma.user.findUnique({ where: { email } }));
         if (!user || !user.passwordHash) return null;
         if (user.status !== "ACTIVE") return null;
 
@@ -108,10 +125,12 @@ export const { handlers, signIn, signOut, auth, unstable_update: updateSession }
       // user can't bypass that by signing in with Google instead. A
       // first-time signup (no existing row yet) has nothing to check here;
       // it proceeds to account creation via the Prisma adapter as normal.
-      const existing = await prisma.user.findUnique({
-        where: { email },
-        select: { status: true },
-      });
+      const existing = await withRetryOnce(() =>
+        prisma.user.findUnique({
+          where: { email },
+          select: { status: true },
+        })
+      );
       if (existing && existing.status !== "ACTIVE") return false;
 
       return true;
