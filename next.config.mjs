@@ -14,6 +14,19 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
+  experimental: {
+    // Next.js's own default (1MB) is far below what this app's own UI
+    // advertises: ListingForm's create flow submits every selected photo
+    // in one Server Action call (see createListingFormAction), and
+    // storage.ts's own MAX_IMAGES_PER_LISTING (10) × MAX_MB (5) puts the
+    // real worst case at 50MB — the default silently crashed with "Body
+    // exceeded 1 MB limit" the moment a real, normal-sized photo was
+    // attached (a small enough test photo never hit it, which is why this
+    // went unnoticed in earlier local/dev testing).
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
   // Phase 9 hardening — applied to every response, not just pages: static
   // assets (including seller-uploaded images under /uploads) get these too,
   // which matters since X-Content-Type-Options is what stops a browser from
