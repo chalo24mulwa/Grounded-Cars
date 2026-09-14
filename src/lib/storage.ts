@@ -12,14 +12,26 @@ import sharp from "sharp";
 // calls them (listing-service.ts) needs to change, since callers only ever
 // see a public URL string back, never a filesystem path.
 //
-// This works today because the documented target host (Namecheap Stellar
-// Plus, via its Node.js app support) has a persistent filesystem — it would
-// NOT work on ephemeral/serverless hosting, which is exactly why this stays
-// swappable rather than assumed permanent. STORAGE_PROVIDER in .env.example
-// already reserves the env vars this will need once that migration happens.
-// ----------------------------------------------------------------------------
-
-const UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
+// This works today because the documented target host has a persistent
+// filesystem — it would NOT work on ephemeral/serverless hosting, which is
+// exactly why this stays swappable rather than assumed permanent.
+// STORAGE_PROVIDER in .env.example already reserves the env vars this will
+// need once that migration happens.
+//
+// UPLOAD_STORAGE_DIR (optional): on Hostinger's actual deploy model, each
+// release is built fresh into its own new versioned directory and the
+// previous one is deleted outright — anything written under the app's own
+// `public/` (this module's original default) is gitignored, was never part
+// of that fresh checkout, and is destroyed the moment the *next* deploy
+// happens. Confirmed the hard way: every image ever uploaded was wiped by
+// the very next `git push`. Setting UPLOAD_STORAGE_DIR to an absolute path
+// OUTSIDE the versioned release tree (e.g. a sibling `shared/uploads`
+// directory the deploy process never touches) fixes this — the app/uploads
+// route handler (src/app/uploads/[...path]/route.ts) serves files from
+// this same directory, since they're no longer reachable via `public/`'s
+// static-file convention once they live outside it. Left unset, this
+// defaults to the original public/uploads path, so local dev is unchanged.
+export const UPLOAD_ROOT = process.env.UPLOAD_STORAGE_DIR || path.join(process.cwd(), "public", "uploads");
 const UPLOAD_DIR = path.join(UPLOAD_ROOT, "listings");
 const PUBLIC_BASE_PATH = "/uploads/listings";
 
