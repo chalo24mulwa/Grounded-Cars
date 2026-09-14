@@ -31,7 +31,24 @@ import sharp from "sharp";
 // this same directory, since they're no longer reachable via `public/`'s
 // static-file convention once they live outside it. Left unset, this
 // defaults to the original public/uploads path, so local dev is unchanged.
-export const UPLOAD_ROOT = process.env.UPLOAD_STORAGE_DIR || path.join(process.cwd(), "public", "uploads");
+//
+// Defensively strips wrapping quote characters: this value passes through
+// whatever ad-hoc config-file parsing the host's own deploy tooling does
+// before it ever reaches process.env, which isn't something this app
+// controls or can verify — confirmed the hard way that a value written
+// with double quotes came through with the literal quote characters still
+// attached (every other existing var in that same file happened to use
+// single quotes, which parsed fine), silently producing a broken nested
+// path instead of an error.
+function stripWrappingQuotes(value: string): string {
+  const isWrapped =
+    (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
+  return isWrapped ? value.slice(1, -1) : value;
+}
+
+export const UPLOAD_ROOT = process.env.UPLOAD_STORAGE_DIR
+  ? stripWrappingQuotes(process.env.UPLOAD_STORAGE_DIR)
+  : path.join(process.cwd(), "public", "uploads");
 const UPLOAD_DIR = path.join(UPLOAD_ROOT, "listings");
 const PUBLIC_BASE_PATH = "/uploads/listings";
 
