@@ -21,6 +21,7 @@ export function InsurancePolicyCard({
             src={policy.imageUrl}
             alt={policy.title}
             fill
+            unoptimized
             className="object-cover"
             sizes="(max-width: 768px) 100vw, 33vw"
           />

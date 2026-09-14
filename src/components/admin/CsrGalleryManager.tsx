@@ -93,6 +93,7 @@ export function CsrGalleryManager({
                   src={image.imageUrl}
                   alt={image.altText ?? "Initiative photo"}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="200px"
                 />

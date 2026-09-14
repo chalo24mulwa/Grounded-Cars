@@ -90,6 +90,7 @@ export function ServiceGalleryManager({
                   src={image.imageUrl}
                   alt={image.altText ?? "Service photo"}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="200px"
                 />

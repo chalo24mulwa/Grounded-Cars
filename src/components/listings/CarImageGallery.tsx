@@ -135,6 +135,7 @@ export function CarImageGallery({
                   src={img.imageUrl}
                   alt={img.altText ?? `${title} — photo ${i + 1}`}
                   fill
+                  unoptimized
                   className={isSold ? "object-cover grayscale-[15%]" : "object-cover"}
                   sizes="(max-width: 768px) 100vw, 800px"
                   priority={i === 0}
@@ -189,6 +190,7 @@ export function CarImageGallery({
                 src={img.imageUrl}
                 alt={img.altText ?? `${title} — thumbnail ${i + 1}`}
                 fill
+                unoptimized
                 className="object-cover"
                 sizes="112px"
                 loading="lazy"
@@ -225,6 +227,7 @@ export function CarImageGallery({
                   src={currentImage.imageUrl}
                   alt={currentImage.altText ?? `${title} — photo ${index + 1}`}
                   fill
+                  unoptimized
                   className="object-contain"
                   sizes="100vw"
                   priority
@@ -284,6 +287,7 @@ export function CarImageGallery({
                     src={img.imageUrl}
                     alt={img.altText ?? `${title} — thumbnail ${i + 1}`}
                     fill
+                    unoptimized
                     className="object-cover"
                     sizes="80px"
                     loading="lazy"

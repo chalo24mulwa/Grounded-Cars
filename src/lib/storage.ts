@@ -57,19 +57,6 @@ export class InvalidImageError extends Error {
   }
 }
 
-function extensionForType(type: string): string {
-  switch (type) {
-    case "image/jpeg":
-      return "jpg";
-    case "image/png":
-      return "png";
-    case "image/webp":
-      return "webp";
-    default:
-      throw new InvalidImageError("Unsupported image type.");
-  }
-}
-
 // A browser-supplied `file.type` is just the client's own claim (or, for a
 // hand-crafted upload bypassing the browser entirely, whatever an attacker
 // chose to send) — it's never proof of what the bytes actually are. This
@@ -132,15 +119,37 @@ async function validateImageFile(file: File): Promise<Uint8Array> {
 // it later.
 const WATERMARK_TEXT = "carmarketplace.co.ke";
 
-async function applyWatermark(
-  bytes: Uint8Array,
-  mimeType: (typeof ALLOWED_IMAGE_TYPES)[number]
-): Promise<Buffer> {
-  // Bake in EXIF orientation and re-measure post-rotation — compositing
-  // against the raw (pre-rotation) width/height would place the watermark
-  // off-center on any photo shot in portrait on a phone.
+// Nothing on the site ever displays a photo larger than this on its longest
+// edge, but a phone camera photo routinely arrives at 12+ megapixels and
+// several MB — stored at full resolution, that both wastes disk space and
+// (since Next's own runtime image optimizer can't process these files in
+// this hosting environment — see the `unoptimized` prop wherever an
+// uploaded imageUrl is rendered) would ship that full-size original
+// straight to every visitor's browser for what's usually a small card
+// thumbnail. Resizing once, here, at upload time is what keeps every
+// uploaded photo small and fast regardless of what the seller's phone
+// produced.
+const MAX_DIMENSION_PX = 1920;
+// Always re-encoded as JPEG regardless of the uploaded format (still PNG/
+// WebP as the accepted *input* types — see ALLOWED_IMAGE_TYPES/
+// validateImageFile, unchanged) — JPEG is the right storage format for
+// photographic content specifically: PNG's lossless compression produces
+// files several times larger for a photo with no actual benefit (there's
+// no flat-color/transparency content here to preserve losslessly).
+const OUTPUT_QUALITY = 82;
+
+async function applyWatermark(bytes: Uint8Array): Promise<Buffer> {
+  // Bake in EXIF orientation and re-measure post-rotation/resize —
+  // compositing against the raw (pre-rotation) width/height would place
+  // the watermark off-center on any photo shot in portrait on a phone.
   const { data, info } = await sharp(Buffer.from(bytes))
     .rotate()
+    .resize({
+      width: MAX_DIMENSION_PX,
+      height: MAX_DIMENSION_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
     .toBuffer({ resolveWithObject: true });
 
   const fontSize = Math.max(18, Math.round(info.width * 0.045));
@@ -152,16 +161,10 @@ async function applyWatermark(
       stroke="#000000" stroke-opacity="0.35" stroke-width="${strokeWidth}">${WATERMARK_TEXT}</text>
   </svg>`;
 
-  const watermarked = sharp(data).composite([{ input: Buffer.from(svg), gravity: "center" }]);
-
-  switch (mimeType) {
-    case "image/jpeg":
-      return watermarked.jpeg({ quality: 88 }).toBuffer();
-    case "image/png":
-      return watermarked.png().toBuffer();
-    case "image/webp":
-      return watermarked.webp({ quality: 88 }).toBuffer();
-  }
+  return sharp(data)
+    .composite([{ input: Buffer.from(svg), gravity: "center" }])
+    .jpeg({ quality: OUTPUT_QUALITY })
+    .toBuffer();
 }
 
 export async function saveListingImage(
@@ -169,14 +172,14 @@ export async function saveListingImage(
   file: File
 ): Promise<{ imageUrl: string; storageKey: string }> {
   const bytes = await validateImageFile(file);
-  const watermarked = await applyWatermark(bytes, file.type as (typeof ALLOWED_IMAGE_TYPES)[number]);
+  const watermarked = await applyWatermark(bytes);
 
   const dir = path.join(UPLOAD_DIR, listingId);
   await mkdir(dir, { recursive: true });
 
   // Filename is never derived from user input (avoids path traversal and
   // collisions) — a random key is the only identity a stored file has.
-  const key = `${crypto.randomBytes(16).toString("hex")}.${extensionForType(file.type)}`;
+  const key = `${crypto.randomBytes(16).toString("hex")}.jpg`;
   await writeFile(path.join(dir, key), watermarked);
 
   const storageKey = `${listingId}/${key}`;
@@ -201,11 +204,11 @@ export async function deleteListingImage(storageKey: string): Promise<void> {
 // so the random key alone is the file's identity.
 export async function saveEventImage(file: File): Promise<{ imageUrl: string; storageKey: string }> {
   const bytes = await validateImageFile(file);
-  const watermarked = await applyWatermark(bytes, file.type as (typeof ALLOWED_IMAGE_TYPES)[number]);
+  const watermarked = await applyWatermark(bytes);
 
   await mkdir(EVENTS_UPLOAD_DIR, { recursive: true });
 
-  const key = `${crypto.randomBytes(16).toString("hex")}.${extensionForType(file.type)}`;
+  const key = `${crypto.randomBytes(16).toString("hex")}.jpg`;
   await writeFile(path.join(EVENTS_UPLOAD_DIR, key), watermarked);
 
   return { imageUrl: `${EVENTS_PUBLIC_BASE_PATH}/${key}`, storageKey: key };
@@ -230,12 +233,12 @@ export async function saveCsrImage(
   file: File
 ): Promise<{ imageUrl: string; storageKey: string }> {
   const bytes = await validateImageFile(file);
-  const watermarked = await applyWatermark(bytes, file.type as (typeof ALLOWED_IMAGE_TYPES)[number]);
+  const watermarked = await applyWatermark(bytes);
 
   const dir = path.join(CSR_UPLOAD_DIR, initiativeId);
   await mkdir(dir, { recursive: true });
 
-  const key = `${crypto.randomBytes(16).toString("hex")}.${extensionForType(file.type)}`;
+  const key = `${crypto.randomBytes(16).toString("hex")}.jpg`;
   await writeFile(path.join(dir, key), watermarked);
 
   const storageKey = `${initiativeId}/${key}`;
@@ -260,12 +263,12 @@ export async function saveServiceImage(
   file: File
 ): Promise<{ imageUrl: string; storageKey: string }> {
   const bytes = await validateImageFile(file);
-  const watermarked = await applyWatermark(bytes, file.type as (typeof ALLOWED_IMAGE_TYPES)[number]);
+  const watermarked = await applyWatermark(bytes);
 
   const dir = path.join(SERVICES_UPLOAD_DIR, serviceId);
   await mkdir(dir, { recursive: true });
 
-  const key = `${crypto.randomBytes(16).toString("hex")}.${extensionForType(file.type)}`;
+  const key = `${crypto.randomBytes(16).toString("hex")}.jpg`;
   await writeFile(path.join(dir, key), watermarked);
 
   const storageKey = `${serviceId}/${key}`;
@@ -287,11 +290,11 @@ export async function deleteServiceImage(storageKey: string): Promise<void> {
 // there's never more than one file to disambiguate).
 export async function saveInsurancePolicyImage(file: File): Promise<{ imageUrl: string; storageKey: string }> {
   const bytes = await validateImageFile(file);
-  const watermarked = await applyWatermark(bytes, file.type as (typeof ALLOWED_IMAGE_TYPES)[number]);
+  const watermarked = await applyWatermark(bytes);
 
   await mkdir(INSURANCE_UPLOAD_DIR, { recursive: true });
 
-  const key = `${crypto.randomBytes(16).toString("hex")}.${extensionForType(file.type)}`;
+  const key = `${crypto.randomBytes(16).toString("hex")}.jpg`;
   await writeFile(path.join(INSURANCE_UPLOAD_DIR, key), watermarked);
 
   return { imageUrl: `${INSURANCE_PUBLIC_BASE_PATH}/${key}`, storageKey: key };

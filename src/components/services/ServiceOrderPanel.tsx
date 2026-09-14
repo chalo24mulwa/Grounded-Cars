@@ -158,7 +158,7 @@ export function ServiceOrderPanel({
         <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
           {service.images.map((image) => (
             <div key={image.id} className="relative aspect-square overflow-hidden rounded-lg bg-slate-100">
-              <Image src={image.imageUrl} alt={image.altText ?? service.title} fill className="object-cover" sizes="150px" />
+              <Image src={image.imageUrl} alt={image.altText ?? service.title} fill unoptimized className="object-cover" sizes="150px" />
             </div>
           ))}
         </div>

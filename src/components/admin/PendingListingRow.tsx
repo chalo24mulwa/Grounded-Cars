@@ -63,6 +63,7 @@ export function PendingListingRow({
             src={cover.imageUrl}
             alt={cover.altText ?? listing.title}
             fill
+            unoptimized
             className="object-cover"
             sizes="112px"
           />

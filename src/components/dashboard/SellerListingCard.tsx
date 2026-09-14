@@ -41,6 +41,7 @@ export function SellerListingCard({ listing }: { listing: Listing }) {
             src={primaryImage.imageUrl}
             alt={primaryImage.altText ?? listing.title}
             fill
+            unoptimized
             className="object-cover"
             sizes="128px"
           />

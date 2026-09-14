@@ -49,7 +49,7 @@ export default async function InsurancePolicyDetailPage({ params }: { params: Pr
         <div className="lg:col-span-3">
           <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
             {policy.imageUrl ? (
-              <Image src={policy.imageUrl} alt={policy.title} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 60vw" priority />
+              <Image src={policy.imageUrl} alt={policy.title} fill unoptimized className="object-cover" sizes="(max-width: 1024px) 100vw, 60vw" priority />
             ) : (
               <div className="flex h-full items-center justify-center text-slate-400">Car Marketplace</div>
             )}

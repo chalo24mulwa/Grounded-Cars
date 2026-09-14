@@ -22,6 +22,7 @@ export function CsrInitiativeCard({ initiative }: { initiative: CardInitiative }
             src={initiative.coverImageUrl}
             alt={initiative.title}
             fill
+            unoptimized
             className="object-cover transition group-hover:scale-[1.02]"
             sizes="(max-width: 768px) 100vw, 33vw"
           />

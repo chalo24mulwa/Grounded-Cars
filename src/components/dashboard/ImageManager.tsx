@@ -114,6 +114,7 @@ export function ImageManager({ listingId, images }: { listingId: string; images:
                   src={image.imageUrl}
                   alt={image.altText ?? "Car photo"}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="200px"
                 />

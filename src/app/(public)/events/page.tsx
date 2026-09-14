@@ -37,6 +37,7 @@ export default async function EventsPage() {
                     src={event.imageUrl}
                     alt={event.title}
                     fill
+                    unoptimized
                     className="object-cover transition group-hover:scale-[1.02]"
                     sizes="(max-width: 768px) 100vw, 33vw"
                   />

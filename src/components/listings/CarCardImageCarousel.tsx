@@ -106,6 +106,7 @@ export function CarCardImageCarousel({
               src={img.imageUrl}
               alt={img.altText ?? `${title} — photo ${i + 1}`}
               fill
+              unoptimized
               className={clsx("object-cover", isSold && "grayscale-[15%]")}
               sizes="(max-width: 768px) 100vw, 33vw"
             />
