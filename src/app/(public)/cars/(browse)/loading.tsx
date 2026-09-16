@@ -1,6 +1,18 @@
 // Next.js's route-level loading convention — shown automatically while the
 // page's data fetch (search/filter/sort against the DB) is in flight, e.g.
 // right after submitting a filter change. No custom spinner wiring needed.
+//
+// Deliberately lives inside the (browse) route group, not directly under
+// cars/, so it scopes to ONLY this page (served at /cars, since route
+// groups don't affect the URL) — a loading.tsx placed directly in cars/
+// would also wrap the sibling cars/[slug] route (listing detail + the
+// make-browse pages), and confirmed the hard way that wrapping a page
+// which can call notFound() in an automatic Suspense boundary makes Next
+// stream a 200-status shell before the page's own not-found status can
+// take effect (a "soft 404" — the wrong page content stops showing, but
+// the HTTP status stays 200, which is exactly what Google Search Console
+// flags as an indexing error). /cars/[slug] has no loading.tsx of its own
+// for this same reason.
 export default function CarsLoading() {
   return (
     <div className="mx-auto max-w-6xl animate-pulse px-4 py-8">

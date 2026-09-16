@@ -3,7 +3,9 @@ import { auth } from "@/lib/auth";
 import { roleDestination, safeCallbackUrl } from "@/lib/role-destination";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 
-export const metadata = { title: "Create your account" };
+// noindex — see login/page.tsx's comment; same reasoning applies to every
+// page in this route group.
+export const metadata = { title: "Create your account", robots: { index: false, follow: true } };
 
 export default async function RegisterPage({
   searchParams,

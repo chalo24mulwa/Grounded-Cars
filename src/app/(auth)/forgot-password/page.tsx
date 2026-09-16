@@ -1,6 +1,7 @@
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 
-export const metadata = { title: "Forgot password" };
+// noindex — see login/page.tsx's comment.
+export const metadata = { title: "Forgot password", robots: { index: false, follow: true } };
 
 export default function ForgotPasswordPage() {
   return (

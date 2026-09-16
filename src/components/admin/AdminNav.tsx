@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { label: "Insurance Policies", href: "/admin/insurance" },
   { label: "Coupons", href: "/admin/coupons" },
   { label: "Audit Log", href: "/admin/audit-log" },
+  { label: "SEO Diagnostics", href: "/admin/seo" },
 ];
 
 export function AdminNav() {

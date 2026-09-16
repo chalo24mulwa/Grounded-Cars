@@ -12,9 +12,13 @@ import { siteConfig } from "@/config/site";
 const HERO_SECONDARY_BUTTON_CLASS =
   "rounded-md bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 backdrop-blur-sm transition hover:bg-white/20";
 
+// `title.absolute` opts out of the root layout's `template: "%s | Car
+// Marketplace"` (see layout.tsx) — the homepage's title is the site's own
+// full brand string, not "Home | Car Marketplace".
 export const metadata = {
-  title: "Home",
-  description: siteConfig.description,
+  title: { absolute: "Car Marketplace Kenya | Buy & Sell Cars in Kenya" },
+  description:
+    "Find quality used cars, locally used vehicles and fresh imports for sale in Kenya. Browse cars from sellers and dealers on Car Marketplace Kenya.",
   alternates: { canonical: "/" },
 };
 

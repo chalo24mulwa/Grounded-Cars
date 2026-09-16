@@ -1,5 +1,9 @@
 import type { MetadataRoute } from "next";
-import { getAllPublicListingSlugsForSitemap } from "@/server/services/listing-service";
+import {
+  getAllPublicListingSlugsForSitemap,
+  getMakeModelIndex,
+  getDistinctLocations,
+} from "@/server/services/listing-service";
 import { getPublishedEvents } from "@/server/services/event-service";
 import { getPublishedCsrInitiatives } from "@/server/services/csr-service";
 
@@ -19,10 +23,12 @@ const SERVICE_SLUGS = [
 // listing-service.ts) + every published event. Auth-gated routes are never
 // listed here; robots.ts also explicitly disallows crawling them.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [listings, events, csrInitiatives] = await Promise.all([
+  const [listings, events, csrInitiatives, makeIndex, locations] = await Promise.all([
     getAllPublicListingSlugsForSitemap(),
     getPublishedEvents(),
     getPublishedCsrInitiatives(),
+    getMakeModelIndex(),
+    getDistinctLocations(),
   ]);
 
   const staticEntries: MetadataRoute.Sitemap = [
@@ -32,6 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${APP_URL}/best-deals`, changeFrequency: "hourly", priority: 0.7 },
     { url: `${APP_URL}/events`, changeFrequency: "daily", priority: 0.6 },
     { url: `${APP_URL}/csr`, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${APP_URL}/reviews`, changeFrequency: "weekly", priority: 0.5 },
     ...SERVICE_SLUGS.map(
       (slug): MetadataRoute.Sitemap[number] => ({
         url: `${APP_URL}/services/${slug}`,
@@ -62,5 +69,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }));
 
-  return [...staticEntries, ...listingEntries, ...eventEntries, ...csrEntries];
+  // Make and location landing pages — only ever included once real
+  // listings exist for them (see cars/[slug]/page.tsx's MakeBrowsePage and
+  // cars-for-sale/[location]/page.tsx), never a fixed/guessed list. This is
+  // what keeps the sitemap from ever advertising a thin, listing-free page.
+  const makeEntries: MetadataRoute.Sitemap = makeIndex.map(({ make }) => ({
+    url: `${APP_URL}/cars/${encodeURIComponent(make.toLowerCase())}`,
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
+
+  const locationEntries: MetadataRoute.Sitemap = locations.map((location) => ({
+    url: `${APP_URL}/cars-for-sale/${encodeURIComponent(location.toLowerCase())}`,
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
+
+  return [...staticEntries, ...listingEntries, ...eventEntries, ...csrEntries, ...makeEntries, ...locationEntries];
 }

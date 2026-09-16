@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 
-export const metadata = { title: "Set a new password" };
+// noindex — see login/page.tsx's comment. Also carries a one-time reset
+// token in the URL, one more reason it should never be indexed/cached.
+export const metadata = { title: "Set a new password", robots: { index: false, follow: true } };
 
 export default async function ResetPasswordPage({
   searchParams,

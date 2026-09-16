@@ -641,6 +641,21 @@ export async function getMakeModelIndex(): Promise<{ make: string; models: strin
   return Array.from(byMake.entries()).map(([make, models]) => ({ make, models }));
 }
 
+/** Distinct, non-empty `location` values among currently-public listings —
+ * backs the /cars-for-sale/[location] landing pages' existence check and
+ * sitemap inclusion (a location only ever gets a page/sitemap entry once a
+ * real listing actually names it — see that page's own comment on why
+ * thin, listing-free pages are deliberately never created). Same bounded-
+ * by-distinct-values shape as getMakeModelIndex, not by listing count. */
+export async function getDistinctLocations(): Promise<string[]> {
+  const rows = await prisma.carListing.findMany({
+    where: { status: { in: publicListingStatuses() }, location: { not: null } },
+    select: { location: true },
+    distinct: ["location"],
+  });
+  return rows.map((r) => r.location).filter((location): location is string => Boolean(location?.trim()));
+}
+
 // Display order + labels for the header's "Find a Car" dropdown — the one
 // place these are named for a human. VEHICLE_CATEGORIES (search-schema.ts)
 // is the validated set of raw enum values; this just pairs each with a
@@ -775,8 +790,24 @@ export async function addListingImage(listingId: string, file: File) {
       storageKey,
       displayOrder: existingCount,
       isPrimary: existingCount === 0, // first image on a listing is primary by default
+      // No UI currently collects seller-authored alt text, so this would
+      // otherwise be null on every photo, site-wide — a real, meaningful
+      // default (year/make/model/location, the exact facts a search engine
+      // image result actually wants) costs nothing and is always accurate,
+      // since it's built from the same listing row the photo belongs to.
+      altText: defaultListingImageAltText(listing),
     },
   });
+}
+
+/** "2018 Toyota Harrier for sale in Nairobi Kenya" — real listing facts
+ * only, never a seller-typed string, so this can never drift from what the
+ * photo actually shows. Shared by every image-adding path for this
+ * listing (there's only one today, but keeping it here rather than inline
+ * means a future second upload path can't forget it). */
+function defaultListingImageAltText(listing: { year: number; make: string; model: string; location: string | null }): string {
+  const locationText = listing.location ? ` in ${listing.location}` : "";
+  return `${listing.year} ${listing.make} ${listing.model} for sale${locationText} Kenya`;
 }
 
 /** Removes one image from a listing (ownership-checked) and promotes the

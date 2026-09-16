@@ -3,7 +3,10 @@ import { auth } from "@/lib/auth";
 import { roleDestination, safeCallbackUrl } from "@/lib/role-destination";
 import { LoginForm } from "@/components/auth/LoginForm";
 
-export const metadata = { title: "Log in" };
+// noindex: a bare login form has nothing worth ranking and would only
+// ever show searchers a dead-end page instead of real content — still
+// fully crawlable (follow: true) so link equity/discovery isn't blocked.
+export const metadata = { title: "Log in", robots: { index: false, follow: true } };
 
 // Auth.js's own OAuth error codes (thrown internally, or produced by our
 // `signIn` callback in lib/auth.ts returning false), translated into copy a

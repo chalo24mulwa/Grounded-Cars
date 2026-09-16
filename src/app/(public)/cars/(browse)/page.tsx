@@ -26,6 +26,11 @@ export const metadata = {
 // never break the whole query) and the actual query lives in
 // getPublicListings() (listing-service.ts). This page stays a thin
 // Server Component: parse → fetch → render, no business logic of its own.
+//
+// Lives inside the (browse) route group (still served at /cars — route
+// groups never affect the URL) specifically so this page's own
+// loading.tsx doesn't also wrap the sibling cars/[slug] route — see that
+// loading.tsx's comment for the soft-404 bug this avoids.
 export default async function CarsPage({
   searchParams,
 }: {
@@ -58,6 +63,25 @@ export default async function CarsPage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="mb-6 text-center text-2xl font-bold">Browse Vehicles</h1>
+
+      {/* Real <a> links into each make's own landing page — internal
+          linking the spec asks for, reachable without any JS, and reuses
+          makeModelIndex already fetched above for the filter sidebar (no
+          extra query). Only ever lists makes that currently have listings,
+          same rule the pages themselves and the sitemap enforce. */}
+      {makeModelIndex.length > 0 && (
+        <nav aria-label="Shop by make" className="mb-6 flex flex-wrap justify-center gap-2">
+          {makeModelIndex.map(({ make }) => (
+            <Link
+              key={make}
+              href={`/cars/${encodeURIComponent(make.toLowerCase())}`}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-brand/40 hover:text-brand"
+            >
+              {make}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       {/* min-h guarantees genuine travel room below the sidebar's own
           (capped) height, so the sticky sidebar has room to actually

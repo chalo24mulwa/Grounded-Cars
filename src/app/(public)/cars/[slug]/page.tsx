@@ -2,7 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
-import { getPublicListingBySlug, getRelatedListings } from "@/server/services/listing-service";
+import {
+  getPublicListingBySlug,
+  getRelatedListings,
+  getMakeModelIndex,
+  getPublicListings,
+} from "@/server/services/listing-service";
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { SoldBanner } from "@/components/ui/SoldBanner";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
@@ -34,9 +39,31 @@ function absoluteUrl(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `${APP_URL}${url}`;
 }
 
+// Human-readable labels for the enum values woven into meta descriptions
+// below — CVT/LPG are real acronyms (never lowercased), everything else is
+// just Title Case with underscores turned into a hyphen where the enum
+// itself represents a compound word (SEMI_AUTOMATIC → Semi-automatic).
+const VALUE_LABELS: Record<string, string> = {
+  MANUAL: "Manual",
+  AUTOMATIC: "Automatic",
+  CVT: "CVT",
+  SEMI_AUTOMATIC: "Semi-automatic",
+  PETROL: "Petrol",
+  DIESEL: "Diesel",
+  HYBRID: "Hybrid",
+  ELECTRIC: "Electric",
+  LPG: "LPG",
+};
+function labelFor(value: string): string {
+  return VALUE_LABELS[value] ?? value;
+}
+
 // A meta description built from real listing data, truncated to a
 // search-engine-friendly length — never a canned line that would be
 // identical (and so useless / duplicate-flagged) across every listing.
+// Weaves in mileage/transmission/fuel type when present (spec: descriptions
+// should surface real spec data, not just price) without keyword-stuffing —
+// each fact appears once, only when the listing actually has it.
 function buildDescription(listing: {
   year: number;
   make: string;
@@ -45,6 +72,9 @@ function buildDescription(listing: {
   price: unknown;
   location: string | null;
   description: string | null;
+  mileage: number | null;
+  transmission: string | null;
+  fuelType: string | null;
 }, isSold: boolean): string {
   const priceText = `${listing.currency} ${Number(listing.price).toLocaleString()}`;
   const locationText = listing.location ? ` in ${listing.location}` : "";
@@ -56,7 +86,13 @@ function buildDescription(listing: {
     return `This ${listing.year} ${listing.make} ${listing.model} has been sold${locationText}. Browse similar ${listing.make} cars for sale on ${siteConfig.name}.`;
   }
 
-  const base = `${listing.year} ${listing.make} ${listing.model} for sale${locationText} — ${priceText}.`;
+  const specParts: string[] = [];
+  if (listing.mileage) specParts.push(`${listing.mileage.toLocaleString()} km`);
+  if (listing.transmission) specParts.push(labelFor(listing.transmission));
+  if (listing.fuelType) specParts.push(labelFor(listing.fuelType));
+  const specText = specParts.length ? ` ${specParts.join(", ")}.` : "";
+
+  const base = `${listing.year} ${listing.make} ${listing.model} for sale${locationText} — ${priceText}.${specText}`;
   const detail = listing.description?.trim();
   const combined = detail ? `${base} ${detail}` : `${base} View photos, specs, and contact the seller on ${siteConfig.name}.`;
   return combined.length > 160 ? `${combined.slice(0, 157)}...` : combined;
@@ -69,12 +105,19 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const listing = await getPublicListingBySlug(slug);
-  if (!listing) return {};
+  if (!listing) return generateMakePageMetadata(slug);
 
   const isSold = listing.status === "SOLD";
+  // Built from structured fields (make/model/year/location), not the
+  // seller's own free-text `listing.title` — keeps every listing's <title>
+  // in a consistent, predictable, keyword-relevant pattern search engines
+  // can rely on ("Toyota Harrier 2018 for Sale in Nairobi | Car
+  // Marketplace Kenya" — the "| Car Marketplace Kenya" suffix comes from
+  // the root layout's own title template, not repeated here). The on-page
+  // H1 is unaffected — it still shows the seller's own title as-is.
   const title = isSold
-    ? `${listing.title} — Sold`
-    : `${listing.title} — ${listing.currency} ${Number(listing.price).toLocaleString()}`;
+    ? `${listing.year} ${listing.make} ${listing.model} — Sold`
+    : `${listing.make} ${listing.model} ${listing.year} for Sale${listing.location ? ` in ${listing.location}` : " in Kenya"}`;
   const description = buildDescription(listing, isSold);
   const canonicalUrl = `${APP_URL}/cars/${listing.slug}`;
   const primaryImage = listing.images.find((img) => img.isPrimary) ?? listing.images[0];
@@ -116,7 +159,24 @@ export default async function CarDetailPage({
 }) {
   const { slug } = await params;
   const listing = await getPublicListingBySlug(slug);
-  if (!listing) notFound();
+  // A listing slug always starts with a 4-digit year (see schema.prisma's
+  // comment on `slug`), so it can never collide with a plain make name —
+  // this is what lets /cars/toyota exist as a sibling of /cars/[slug]
+  // without a routing conflict (Next.js requires every page at this same
+  // path position to share one dynamic segment name, so a make page can't
+  // live in its own [make] folder next to this one).
+  //
+  // notFound() is called directly here, in the page's own top-level
+  // function body, rather than inside MakeBrowsePage itself — confirmed
+  // during testing that a notFound() thrown from a plain nested async
+  // component (not the route's own default export) rendered the
+  // not-found UI correctly but left the HTTP status at 200 instead of
+  // 404, which every real crawler/monitoring tool cares about.
+  if (!listing) {
+    const make = await findMatchingMake(slug);
+    if (!make) notFound();
+    return <MakeBrowsePage make={make} />;
+  }
 
   const [session, relatedListings] = await Promise.all([
     auth(),
@@ -173,6 +233,21 @@ export default async function CarDetailPage({
     },
   };
 
+  // Mirrors the real navigational path a visitor actually takes to reach
+  // this page (Home → Cars → this make's own listing page → this listing),
+  // never a fabricated hierarchy — the make link only appears once that
+  // page exists for a make with real listings (see cars/[make]/page.tsx).
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: APP_URL },
+      { "@type": "ListItem", position: 2, name: "Cars", item: `${APP_URL}/cars` },
+      { "@type": "ListItem", position: 3, name: listing.make, item: `${APP_URL}/cars/${encodeURIComponent(listing.make.toLowerCase())}` },
+      { "@type": "ListItem", position: 4, name: listing.title },
+    ],
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <script
@@ -180,6 +255,44 @@ export default async function CarDetailPage({
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
+      {/* Real, crawlable <a> links mirroring the JSON-LD breadcrumb above —
+          also doubles as internal linking into the make page (spec: pages
+          must be reachable through normal HTML links, not only JS). */}
+      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-slate-500">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-brand hover:underline">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link href="/cars" className="hover:text-brand hover:underline">
+              Cars
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link
+              href={`/cars/${encodeURIComponent(listing.make.toLowerCase())}`}
+              className="hover:text-brand hover:underline"
+            >
+              {listing.make}
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li className="truncate text-slate-700" aria-current="page">
+            {listing.title}
+          </li>
+        </ol>
+      </nav>
+
       <CarImageGallery
         images={galleryImages}
         title={listing.title}
@@ -299,6 +412,115 @@ export default async function CarDetailPage({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Make landing pages (/cars/toyota, /cars/mazda, …) — a sibling of the
+// listing-detail view above sharing this same [slug] route (see the
+// comment where this is invoked for why they can't live in their own
+// [make] folder). Only ever renders for a make that actually has current
+// public listings — matched against getMakeModelIndex() (never a fixed,
+// hardcoded make list), which is what keeps this from becoming a
+// thousands-of-thin-pages generator: no Mazda listings today means no
+// working /cars/mazda page today.
+// ----------------------------------------------------------------------------
+
+async function findMatchingMake(param: string): Promise<string | null> {
+  const index = await getMakeModelIndex();
+  const decoded = decodeURIComponent(param).toLowerCase();
+  return index.find((m) => m.make.toLowerCase() === decoded)?.make ?? null;
+}
+
+async function generateMakePageMetadata(param: string): Promise<Metadata> {
+  const make = await findMatchingMake(param);
+  if (!make) return {};
+
+  const title = `${make} Cars for Sale in Kenya | ${siteConfig.legalName}`;
+  return {
+    title: { absolute: title },
+    description: `Browse ${make} cars for sale in Kenya — locally used vehicles and fresh import ${make} imports from verified sellers and dealers on ${siteConfig.name}.`,
+    alternates: { canonical: `${APP_URL}/cars/${encodeURIComponent(param.toLowerCase())}` },
+  };
+}
+
+async function MakeBrowsePage({ make }: { make: string }) {
+  const session = await auth();
+  const [{ listings, totalCount }, favoriteIds] = await Promise.all([
+    getPublicListings({ make }),
+    session?.user ? getMyFavoriteListingIds() : Promise.resolve(new Set<string>()),
+  ]);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: APP_URL },
+      { "@type": "ListItem", position: 2, name: "Cars", item: `${APP_URL}/cars` },
+      { "@type": "ListItem", position: 3, name: `${make} Cars for Sale` },
+    ],
+  };
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger -- static breadcrumb data only
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-slate-500">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-brand hover:underline">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link href="/cars" className="hover:text-brand hover:underline">
+              Cars
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li className="text-slate-700" aria-current="page">
+            {make}
+          </li>
+        </ol>
+      </nav>
+
+      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{make} Cars for Sale in Kenya</h1>
+      <p className="mt-1 text-sm text-slate-600">
+        {totalCount.toLocaleString()} verified {totalCount === 1 ? "listing" : "listings"} right now.
+      </p>
+
+      {listings.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+          <p className="font-medium text-slate-700">No {make} vehicles currently listed.</p>
+          <Link href="/cars" className="mt-3 inline-block text-sm font-medium text-brand hover:underline">
+            Browse all vehicles →
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {listings.map((listing) => (
+            <CarCard
+              key={listing.id}
+              listing={listing}
+              isFavorited={favoriteIds.has(listing.id)}
+              isAuthenticated={Boolean(session?.user)}
+            />
+          ))}
+        </div>
+      )}
+
+      <p className="mt-8 text-sm text-slate-500">
+        Looking for a different make?{" "}
+        <Link href="/cars" className="font-medium text-brand hover:underline">
+          Browse all vehicles across Kenya
+        </Link>
+        .
+      </p>
     </div>
   );
 }
