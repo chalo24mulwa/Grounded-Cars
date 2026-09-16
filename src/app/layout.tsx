@@ -22,6 +22,13 @@ export const metadata: Metadata = {
     template: `%s | ${siteConfig.legalName}`,
   },
   description: siteConfig.description,
+  // Renders as <meta name="google-site-verification" content="..." /> —
+  // proves domain ownership for Google Search Console. Public by design
+  // (this is literally how the HTML-tag verification method works), so
+  // there's nothing sensitive about committing it.
+  verification: {
+    google: "xOG5JJ1Cnrt8X6343_9Firlcae11Cx2c-yX4ueUwWYQ",
+  },
 };
 
 // Site-wide, static structured data — identical on every page, so it lives
