@@ -27,6 +27,25 @@ const nextConfig = {
       bodySizeLimit: "50mb",
     },
   },
+  // www.carmarketplace.co.ke and carmarketplace.co.ke were both resolving
+  // and serving identical content with no redirect between them — a real
+  // duplicate-domain issue (confirmed live: both returned 200 for the same
+  // page). The non-www form is canonical everywhere else already
+  // (siteConfig, NEXT_PUBLIC_APP_URL, every page's `alternates.canonical`,
+  // the Google Search Console property that's actually verified), so this
+  // permanently redirects the www host to it rather than the other way
+  // around. Host-based matching, not a DNS-level fix, since this app has
+  // no control over DNS/vhost config on this host.
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.carmarketplace.co.ke" }],
+        destination: "https://carmarketplace.co.ke/:path*",
+        permanent: true,
+      },
+    ];
+  },
   // Phase 9 hardening — applied to every response, not just pages: static
   // assets (including seller-uploaded images under /uploads) get these too,
   // which matters since X-Content-Type-Options is what stops a browser from
