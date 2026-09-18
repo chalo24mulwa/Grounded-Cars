@@ -27,6 +27,7 @@ import {
 } from "@/lib/storage";
 import { notify } from "@/server/services/notification-service";
 import { checkRateLimit } from "@/server/services/rate-limit";
+import { SwrCache, invalidateAllSwrCaches } from "@/lib/swr-cache";
 
 // Whether SOLD listings stay visible on the public marketplace. Reserved as
 // a constant (rather than hardcoding the condition inline at every call
@@ -143,6 +144,11 @@ export async function changeListingStatus(
 
     return result;
   });
+
+  // The write hook in prisma.ts already cleared the public-data caches while
+  // the transaction was still open; clear again now that it has actually
+  // committed, so nothing that loaded in that small window can stay cached.
+  invalidateAllSwrCaches();
 
   // Notifications are deliberately outside the transaction above — they
   // aren't part of the atomic status change, and notify() never throws, so
@@ -290,6 +296,31 @@ export async function getAllPublicListingSlugsForSitemap() {
  * one, keyed by `slug`, for the lifetime of that single request only (never
  * shared across different users/requests, unlike a real cache). */
 export const getPublicListingBySlug = cache(async (slug: string) => {
+  const listing = await listingBySlugCache.get(slug, () => loadPublicListingBySlug(slug));
+  if (!listing) return null;
+
+  // Runs on every visit, deliberately outside the cache below it — the
+  // counter must keep counting even when the listing itself is served from
+  // memory. (See NON_PUBLIC_FIELDS in prisma.ts for why this doesn't clear
+  // that cache.)
+  prisma.carListing
+    .update({ where: { id: listing.id }, data: { viewCount: { increment: 1 } } })
+    .catch((error) => console.error("Failed to increment listing view count:", error));
+
+  return listing;
+});
+
+// The database half of getPublicListingBySlug — what actually gets cached.
+// A page view used to be: find the listing, load its images and seller, then
+// check for a featured subscription, all one after another.
+const listingBySlugCache = new SwrCache({
+  name: "listing-by-slug",
+  freshMs: 30_000,
+  maxStaleMs: 10 * 60_000,
+  maxEntries: 300,
+});
+
+async function loadPublicListingBySlug(slug: string) {
   const listing = await prisma.carListing.findFirst({
     where: {
       slug,
@@ -302,10 +333,6 @@ export const getPublicListingBySlug = cache(async (slug: string) => {
   });
 
   if (!listing) return null;
-
-  prisma.carListing
-    .update({ where: { id: listing.id }, data: { viewCount: { increment: 1 } } })
-    .catch((error) => console.error("Failed to increment listing view count:", error));
 
   // Same live computation as getPublicListings() below — a listing is only
   // "featured" while it has an ACTIVE, unexpired subscription AND is
@@ -320,7 +347,7 @@ export const getPublicListingBySlug = cache(async (slug: string) => {
       : null;
 
   return { ...listing, isFeatured: Boolean(activeFeature) };
-});
+}
 
 const CARD_IMAGE_ORDER_BY = [{ isPrimary: "desc" as const }, { displayOrder: "asc" as const }];
 // CarCard now plays through a listing's photos in place (CarCardImageGallery
@@ -372,17 +399,30 @@ function wordOverlapScore(a: Set<string>, b: Set<string>): number {
  * listing's own category doesn't have enough other listings yet (a sparse
  * category on a young marketplace shouldn't just render an empty section).
  */
-export async function getRelatedListings(
-  listing: {
-    id: string;
-    category: VehicleCategory;
-    make: string;
-    price: Prisma.Decimal | number;
-    title: string;
-    description: string | null;
-  },
-  limit = 8
-) {
+type RelatedListingSource = {
+  id: string;
+  category: VehicleCategory;
+  make: string;
+  price: Prisma.Decimal | number;
+  title: string;
+  description: string | null;
+};
+
+// Scoring up to 60 candidates is 3-5 sequential database round trips on every
+// detail page view; the result only changes when listings change (which
+// clears this cache — see prisma.ts).
+const relatedListingsCache = new SwrCache({
+  name: "related-listings",
+  freshMs: 60_000,
+  maxStaleMs: 10 * 60_000,
+  maxEntries: 300,
+});
+
+export async function getRelatedListings(listing: RelatedListingSource, limit = 8) {
+  return relatedListingsCache.get(`${listing.id}:${limit}`, () => loadRelatedListings(listing, limit));
+}
+
+async function loadRelatedListings(listing: RelatedListingSource, limit: number) {
   const statuses = publicListingStatuses();
   const price = Number(listing.price);
   const targetWords = significantWords(`${listing.title} ${listing.description ?? ""}`);
@@ -534,9 +574,24 @@ export type ListingSearchResult = Awaited<ReturnType<typeof getPublicListings>>;
  * sellers are actively paying) is what's fetched in full, never the normal
  * set.
  */
-export async function getPublicListings(
-  filters: Partial<ListingSearchParams> & { onlyFeatured?: boolean } = {}
-) {
+type PublicListingFilters = Partial<ListingSearchParams> & { onlyFeatured?: boolean };
+
+// Same for every visitor, so one visitor's load serves everyone (see
+// swr-cache.ts). Free-text searches are the one thing not cached: the space of
+// possible search strings is unbounded and each is typically asked once.
+const publicListingsCache = new SwrCache({
+  name: "public-listings",
+  freshMs: 30_000,
+  maxStaleMs: 10 * 60_000,
+  maxEntries: 200,
+});
+
+export async function getPublicListings(filters: PublicListingFilters = {}) {
+  if (filters.q) return loadPublicListings(filters);
+  return publicListingsCache.get(JSON.stringify(filters), () => loadPublicListings(filters));
+}
+
+async function loadPublicListings(filters: PublicListingFilters) {
   const now = new Date();
   const statuses = publicListingStatuses();
   const where = buildListingWhere(filters, statuses);
@@ -551,21 +606,28 @@ export async function getPublicListings(
   // (which may include SOLD) — a SOLD listing must never be treated as
   // featured even if it still has time left on its subscription, per the
   // Phase 4 rule this preserves.
-  const featuredRows = await prisma.featuredSubscription.findMany({
-    where: {
-      status: "ACTIVE",
-      expiresAt: { gt: now },
-      listing: { ...where, status: "ACTIVE" },
-    },
-    select: { listingId: true },
-    distinct: ["listingId"],
-  });
+  //
+  // The total number of matching listings is fetched at the same time as the
+  // featured ids rather than after them: every featured listing already
+  // satisfies `where` (that's what the query above filters on), so "matching
+  // listings that aren't featured" is simply matching minus featured. This
+  // removes one full database round trip from the chain.
+  const [featuredRows, totalMatching] = await Promise.all([
+    prisma.featuredSubscription.findMany({
+      where: {
+        status: "ACTIVE",
+        expiresAt: { gt: now },
+        listing: { ...where, status: "ACTIVE" },
+      },
+      select: { listingId: true },
+      distinct: ["listingId"],
+    }),
+    filters.onlyFeatured ? Promise.resolve(0) : prisma.carListing.count({ where }),
+  ]);
   const allFeaturedIds = featuredRows.map((r) => r.listingId);
 
   const totalFeatured = allFeaturedIds.length;
-  const totalNormal = filters.onlyFeatured
-    ? 0
-    : await prisma.carListing.count({ where: { ...where, id: { notIn: allFeaturedIds } } });
+  const totalNormal = filters.onlyFeatured ? 0 : Math.max(0, totalMatching - totalFeatured);
   const totalCount = totalFeatured + totalNormal;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -631,6 +693,17 @@ export async function getPublicListings(
  * hundreds at most for a car marketplace), never by listing count, so this
  * stays cheap regardless of how many thousands of listings exist. */
 export async function getMakeModelIndex(): Promise<{ make: string; models: string[] }[]> {
+  return makeModelIndexCache.get("all", loadMakeModelIndex);
+}
+
+const makeModelIndexCache = new SwrCache({
+  name: "make-model-index",
+  freshMs: 60_000,
+  maxStaleMs: 30 * 60_000,
+  maxEntries: 1,
+});
+
+async function loadMakeModelIndex(): Promise<{ make: string; models: string[] }[]> {
   const rows = await prisma.carListing.findMany({
     where: { status: { in: publicListingStatuses() } },
     select: { make: true, model: true },
@@ -684,13 +757,15 @@ type CategoryCount = { value: VehicleCategory; label: string; count: number };
 // The header runs this on literally every page, so it used to add a database
 // round trip (a full groupBy) to every single page view just to draw a few
 // numbers in a dropdown. A minute of staleness in those counts is invisible;
-// the round trip is not. Kept in memory per server process, with concurrent
-// callers sharing one in-flight query. If a refresh fails (a dropped database
-// connection), the last good value is served instead of failing the whole
-// page over a dropdown badge.
-const CATEGORY_COUNTS_TTL_MS = 60_000;
-let categoryCountsCache: { value: CategoryCount[]; fetchedAt: number } | null = null;
-let categoryCountsInFlight: Promise<CategoryCount[]> | null = null;
+// the round trip is not. Cached in memory (see swr-cache.ts), which also
+// serves the last good value if a refresh fails (a dropped database
+// connection) instead of failing the whole page over a dropdown badge.
+const categoryCountsCache = new SwrCache({
+  name: "category-counts",
+  freshMs: 60_000,
+  maxStaleMs: 30 * 60_000,
+  maxEntries: 1,
+});
 
 async function fetchCategoryCounts(): Promise<CategoryCount[]> {
   const rows = await prisma.carListing.groupBy({
@@ -708,25 +783,7 @@ async function fetchCategoryCounts(): Promise<CategoryCount[]> {
 }
 
 export async function getCategoryCounts(): Promise<CategoryCount[]> {
-  if (categoryCountsCache && Date.now() - categoryCountsCache.fetchedAt < CATEGORY_COUNTS_TTL_MS) {
-    return categoryCountsCache.value;
-  }
-
-  categoryCountsInFlight ??= fetchCategoryCounts()
-    .then((value) => {
-      categoryCountsCache = { value, fetchedAt: Date.now() };
-      return value;
-    })
-    .finally(() => {
-      categoryCountsInFlight = null;
-    });
-
-  try {
-    return await categoryCountsInFlight;
-  } catch (error) {
-    if (categoryCountsCache) return categoryCountsCache.value;
-    throw error;
-  }
+  return categoryCountsCache.get("all", fetchCategoryCounts);
 }
 
 /** Ownership-checked fetch for the seller's own edit/manage-images page. */

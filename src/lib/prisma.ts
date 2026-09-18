@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { invalidateAllSwrCaches } from "@/lib/swr-cache";
 
 // Standard Next.js singleton pattern: without this, hot-reloading in
 // development spawns a new PrismaClient (and DB connection pool) on every
@@ -48,9 +49,11 @@ const basePrisma =
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = basePrisma;
-}
+// Stored on globalThis in production too, not just in dev: Next.js can load
+// this module more than once per process (server actions and pages can each
+// get their own copy), and every extra copy would open its own connection pool
+// — more idle connections for the database to drop.
+globalForPrisma.prisma = basePrisma;
 
 // A transient dropped connection (Prisma's pooled connection to Neon being
 // closed server-side — see docs/deployment.md's pooling notes) throws on
@@ -104,11 +107,35 @@ export async function retryOnTransientConnectionError<T>(
 
 const MAX_READ_ATTEMPTS = 4;
 
+// Writing to any of these changes what the public pages show, so every write
+// clears the in-memory public-data caches (src/lib/swr-cache.ts). Doing it here
+// — where every query passes — means no current or future write path can
+// forget to.
+const PUBLIC_DATA_MODELS = new Set(["CarListing", "CarImage", "FeaturedSubscription"]);
+// Fields nothing public displays. The listing page bumps viewCount on every
+// single visit — if that counted as a change, the cache would be wiped by the
+// very traffic it exists to serve.
+const NON_PUBLIC_FIELDS = new Set(["viewCount"]);
+
+function changesPublicData(model: string | undefined, args: unknown): boolean {
+  if (!model || !PUBLIC_DATA_MODELS.has(model)) return false;
+  const data = (args as { data?: unknown } | undefined)?.data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const fields = Object.keys(data);
+    if (fields.length > 0 && fields.every((field) => NON_PUBLIC_FIELDS.has(field))) return false;
+  }
+  return true;
+}
+
 export const prisma = basePrisma.$extends({
   query: {
     async $allOperations({ operation, model, args, query }) {
-      if (!READ_OPERATIONS.has(operation)) return query(args);
-      return retryOnTransientConnectionError(() => query(args), MAX_READ_ATTEMPTS, `${model ?? ""}.${operation}`);
+      if (READ_OPERATIONS.has(operation)) {
+        return retryOnTransientConnectionError(() => query(args), MAX_READ_ATTEMPTS, `${model ?? ""}.${operation}`);
+      }
+      const result = await query(args);
+      if (changesPublicData(model, args)) invalidateAllSwrCaches();
+      return result;
     },
   },
 }) as unknown as PrismaClient;
