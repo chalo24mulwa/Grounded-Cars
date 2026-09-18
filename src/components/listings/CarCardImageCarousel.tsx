@@ -35,7 +35,18 @@ export function CarCardImageCarousel({
   children?: React.ReactNode;
 }) {
   const [index, setIndex] = useState(0);
-  const count = images.length;
+  // A CarImage row existing in the database is no guarantee the file it
+  // points at still exists on disk (e.g. an upload from before the
+  // persistent-storage fix, since deleted along with an old deploy) — an
+  // <img> whose src 404s renders the browser's own broken-image icon by
+  // default, which is exactly the "blank box" bug this fixes. Once an
+  // image actually fails to load, it's dropped from what this carousel
+  // considers real, falling back to the existing "No photo available"
+  // state below if that empties the list entirely, or just seamlessly
+  // skipping it if other photos on the same listing still load fine.
+  const [failedUrls, setFailedUrls] = useState<ReadonlySet<string>>(() => new Set());
+  const visibleImages = images.filter((img) => !failedUrls.has(img.imageUrl));
+  const count = visibleImages.length;
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
 
@@ -89,6 +100,12 @@ export function CarCardImageCarousel({
     );
   }
 
+  // Clamps against the post-filter count, not the raw prop length — an
+  // onError firing for whatever slide is currently showing (or one ahead
+  // of it) would otherwise leave the track translated past the end of the
+  // now-shorter list, i.e. scrolled to blank space.
+  const safeIndex = Math.min(index, count - 1);
+
   return (
     <div
       className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100"
@@ -98,9 +115,9 @@ export function CarCardImageCarousel({
     >
       <div
         className="flex h-full transition-transform duration-300 ease-out"
-        style={{ transform: `translateX(-${index * 100}%)` }}
+        style={{ transform: `translateX(-${safeIndex * 100}%)` }}
       >
-        {images.map((img, i) => (
+        {visibleImages.map((img, i) => (
           <div key={img.imageUrl} className="relative h-full w-full shrink-0">
             <Image
               src={img.imageUrl}
@@ -109,6 +126,7 @@ export function CarCardImageCarousel({
               unoptimized
               className={clsx("object-cover", isSold && "grayscale-[15%]")}
               sizes="(max-width: 768px) 100vw, 33vw"
+              onError={() => setFailedUrls((prev) => new Set(prev).add(img.imageUrl))}
             />
           </div>
         ))}
@@ -136,16 +154,16 @@ export function CarCardImageCarousel({
           </button>
 
           <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1">
-            {images.map((_, i) => (
+            {visibleImages.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={(e) => handleDotClick(i, e)}
                 aria-label={`Show photo ${i + 1} of ${count}`}
-                aria-current={i === index}
+                aria-current={i === safeIndex}
                 className={clsx(
                   "h-1.5 w-1.5 rounded-full shadow-sm transition",
-                  i === index ? "bg-white" : "bg-white/60 hover:bg-white/90"
+                  i === safeIndex ? "bg-white" : "bg-white/60 hover:bg-white/90"
                 )}
               />
             ))}

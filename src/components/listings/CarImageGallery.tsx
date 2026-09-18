@@ -34,7 +34,19 @@ export function CarImageGallery({
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef(0);
 
-  const count = images.length;
+  // A CarImage row existing in the database is no guarantee the file it
+  // points at still exists on disk (e.g. an upload from before the
+  // persistent-storage fix, since deleted along with an old deploy) — an
+  // <img> whose src 404s renders the browser's own broken-image icon by
+  // default. Once an image actually fails to load, it's dropped from what
+  // this gallery considers real, falling back to the existing "No photos
+  // available" state below if that empties the list entirely, or just
+  // seamlessly skipping it if other photos on the same listing still load.
+  const [failedUrls, setFailedUrls] = useState<ReadonlySet<string>>(() => new Set());
+  const visibleImages = images.filter((img) => !failedUrls.has(img.imageUrl));
+  const onImageError = (url: string) => setFailedUrls((prev) => new Set(prev).add(url));
+
+  const count = visibleImages.length;
 
   const goTo = useCallback(
     (next: number) => {
@@ -103,8 +115,12 @@ export function CarImageGallery({
 
   // count > 0 here (the count === 0 branch above already returned), and
   // goTo()'s modulo wrap keeps `index` in [0, count) at all times — this is
-  // just proving that to TypeScript, not a real fallback path.
-  const currentImage = images[index] ?? images[0]!;
+  // just proving that to TypeScript, not a real fallback path. Also covers
+  // `index` momentarily pointing past the end right after an onError
+  // shrinks visibleImages, same as the safeIndex clamp used for the main
+  // carousel's transform below.
+  const safeIndex = Math.min(index, count - 1);
+  const currentImage = visibleImages[safeIndex] ?? visibleImages[0]!;
 
   return (
     <div>
@@ -121,9 +137,9 @@ export function CarImageGallery({
         <div className="relative aspect-[16/10] w-full">
           <div
             className="flex h-full transition-transform duration-300 ease-out"
-            style={{ transform: `translateX(-${index * 100}%)` }}
+            style={{ transform: `translateX(-${safeIndex * 100}%)` }}
           >
-            {images.map((img, i) => (
+            {visibleImages.map((img, i) => (
               <button
                 key={img.id ?? img.imageUrl}
                 type="button"
@@ -139,6 +155,7 @@ export function CarImageGallery({
                   className={isSold ? "object-cover grayscale-[15%]" : "object-cover"}
                   sizes="(max-width: 768px) 100vw, 800px"
                   priority={i === 0}
+                  onError={() => onImageError(img.imageUrl)}
                 />
               </button>
             ))}
@@ -166,7 +183,7 @@ export function CarImageGallery({
               <ChevronIcon direction="right" />
             </button>
             <span className="absolute bottom-3 right-3 z-10 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
-              {index + 1} / {count}
+              {safeIndex + 1} / {count}
             </span>
           </>
         )}
@@ -174,16 +191,16 @@ export function CarImageGallery({
 
       {count > 1 && (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {images.map((img, i) => (
+          {visibleImages.map((img, i) => (
             <button
               key={img.id ?? img.imageUrl}
               type="button"
               onClick={() => goTo(i)}
               aria-label={`Show photo ${i + 1} of ${count}`}
-              aria-current={i === index}
+              aria-current={i === safeIndex}
               className={
                 "relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border-2 transition " +
-                (i === index ? "border-brand" : "border-transparent hover:border-slate-300")
+                (i === safeIndex ? "border-brand" : "border-transparent hover:border-slate-300")
               }
             >
               <Image
@@ -194,6 +211,7 @@ export function CarImageGallery({
                 className="object-cover"
                 sizes="112px"
                 loading="lazy"
+                onError={() => onImageError(img.imageUrl)}
               />
             </button>
           ))}
@@ -225,12 +243,13 @@ export function CarImageGallery({
               <div className="relative h-full w-full">
                 <Image
                   src={currentImage.imageUrl}
-                  alt={currentImage.altText ?? `${title} — photo ${index + 1}`}
+                  alt={currentImage.altText ?? `${title} — photo ${safeIndex + 1}`}
                   fill
                   unoptimized
                   className="object-contain"
                   sizes="100vw"
                   priority
+                  onError={() => onImageError(currentImage.imageUrl)}
                 />
               </div>
             </div>
@@ -269,18 +288,18 @@ export function CarImageGallery({
               onClick={(e) => e.stopPropagation()}
             >
               <span className="mr-2 shrink-0 text-xs font-medium text-white/70">
-                {index + 1} / {count}
+                {safeIndex + 1} / {count}
               </span>
-              {images.map((img, i) => (
+              {visibleImages.map((img, i) => (
                 <button
                   key={img.id ?? img.imageUrl}
                   type="button"
                   onClick={() => goTo(i)}
                   aria-label={`Show photo ${i + 1} of ${count}`}
-                  aria-current={i === index}
+                  aria-current={i === safeIndex}
                   className={
                     "relative h-14 w-20 shrink-0 overflow-hidden rounded-md border-2 transition " +
-                    (i === index ? "border-white" : "border-transparent opacity-60 hover:opacity-100")
+                    (i === safeIndex ? "border-white" : "border-transparent opacity-60 hover:opacity-100")
                   }
                 >
                   <Image
@@ -291,6 +310,7 @@ export function CarImageGallery({
                     className="object-cover"
                     sizes="80px"
                     loading="lazy"
+                    onError={() => onImageError(img.imageUrl)}
                   />
                 </button>
               ))}
