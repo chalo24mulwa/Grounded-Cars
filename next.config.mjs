@@ -26,6 +26,14 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "50mb",
     },
+    // Separate from the Server Action limit above: src/middleware.ts matches
+    // /dashboard/*, so Next buffers every request body passing through it
+    // and silently truncates at 10MB by default. A listing with several
+    // phone photos easily exceeds that, and the cut-off multipart body
+    // then fails to parse ("Unexpected end of form") — the generic
+    // "Something went wrong" seen when submitting a listing. Kept equal to
+    // the Server Action limit so the two can't disagree.
+    middlewareClientMaxBodySize: "50mb",
   },
   // www.carmarketplace.co.ke and carmarketplace.co.ke were both resolving
   // and serving identical content with no redirect between them — a real
