@@ -40,6 +40,20 @@ function toUserSafeError(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
+// For actions whose real work (a listing's status change) has already been
+// committed by the time the audit entry is written. If the audit write then
+// fails, reporting the whole action as failed is wrong — the listing IS
+// approved/sent back/archived, so the admin sees "Something went wrong",
+// retries, and hits a confusing invalid-transition error instead. Log it and
+// let the action report the success it actually achieved.
+async function recordAuditLogAfterCommit(...args: Parameters<typeof recordAuditLog>) {
+  try {
+    await recordAuditLog(...args);
+  } catch (error) {
+    console.error("Audit log write failed after the action itself had already committed:", error);
+  }
+}
+
 const createPlanSchema = z.object({
   name: z.string().min(2).max(60),
   durationDays: z.coerce.number().int().min(1).max(365),
@@ -102,7 +116,7 @@ export async function approveListingAction(listingId: string): Promise<ActionRes
   try {
     const admin = await requireRole("ADMIN", "MODERATOR");
     const listing = await approveListing(listingId);
-    await recordAuditLog(admin.id, "LISTING_APPROVED", "CarListing", listing.id, {
+    await recordAuditLogAfterCommit(admin.id, "LISTING_APPROVED", "CarListing", listing.id, {
       title: listing.title,
     });
     revalidatePath("/admin");
@@ -130,7 +144,7 @@ export async function rejectListingAction(
     const { reason: validReason } = rejectSchema.parse({ reason });
     const admin = await requireRole("ADMIN", "MODERATOR");
     const listing = await rejectListing(listingId, validReason);
-    await recordAuditLog(admin.id, "LISTING_REJECTED", "CarListing", listing.id, {
+    await recordAuditLogAfterCommit(admin.id, "LISTING_REJECTED", "CarListing", listing.id, {
       title: listing.title,
       reason: validReason,
     });
@@ -150,7 +164,7 @@ export async function archiveListingByAdminAction(
     const { reason: validReason } = rejectSchema.parse({ reason });
     const admin = await requireRole("ADMIN");
     const listing = await archiveListingByAdmin(listingId, validReason);
-    await recordAuditLog(admin.id, "LISTING_ARCHIVED_BY_ADMIN", "CarListing", listing.id, {
+    await recordAuditLogAfterCommit(admin.id, "LISTING_ARCHIVED_BY_ADMIN", "CarListing", listing.id, {
       title: listing.title,
       reason: validReason,
     });

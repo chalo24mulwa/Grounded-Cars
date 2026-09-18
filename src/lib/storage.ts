@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { writeFile, mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { WATERMARK_PATH, WATERMARK_BOUNDS } from "@/lib/watermark-path";
 
 // ----------------------------------------------------------------------------
 // Local-disk image storage for Phase 3. Deliberately isolated behind this
@@ -146,7 +147,8 @@ async function validateImageFile(file: File): Promise<Uint8Array> {
 // there in the saved file itself if someone right-clicks "Save image" or
 // downloads it directly. Applied once, here, so no upload path can forget
 // it later.
-const WATERMARK_TEXT = "carmarketplace.co.ke";
+// The text itself ("carmarketplace.co.ke") lives in watermark-path.ts as
+// vector outlines.
 
 // Nothing on the site ever displays a photo larger than this on its longest
 // edge, but a phone camera photo routinely arrives at 12+ megapixels and
@@ -167,10 +169,17 @@ const MAX_DIMENSION_PX = 1920;
 // no flat-color/transparency content here to preserve losslessly).
 const OUTPUT_QUALITY = 82;
 
+// The watermark's width as a share of the photo's width.
+const WATERMARK_WIDTH_RATIO = 0.5;
+
 async function applyWatermark(bytes: Uint8Array): Promise<Buffer> {
   // Bake in EXIF orientation and re-measure post-rotation/resize —
   // compositing against the raw (pre-rotation) width/height would place
   // the watermark off-center on any photo shot in portrait on a phone.
+  // Kept as raw pixels (not an intermediate JPEG) so the photo is only ever
+  // JPEG-encoded once, at the very end — encoding twice both costs time and
+  // visibly degrades quality. Transparent PNGs are flattened onto white
+  // rather than left to become black when JPEG drops the alpha channel.
   const { data, info } = await sharp(Buffer.from(bytes))
     .rotate()
     .resize({
@@ -179,19 +188,28 @@ async function applyWatermark(bytes: Uint8Array): Promise<Buffer> {
       fit: "inside",
       withoutEnlargement: true,
     })
+    .flatten({ background: "#ffffff" })
+    .raw()
     .toBuffer({ resolveWithObject: true });
 
-  const fontSize = Math.max(18, Math.round(info.width * 0.045));
-  const strokeWidth = Math.max(1, Math.round(fontSize * 0.06));
+  // The text is drawn from pre-rendered outlines (see watermark-path.ts for
+  // why this isn't an SVG <text> element), scaled so it always spans the same
+  // share of the photo and centered on it. The dark stroke layer underneath
+  // keeps it legible on both light and dark photos.
+  const boundsWidth = WATERMARK_BOUNDS.x2 - WATERMARK_BOUNDS.x1;
+  const scale = (info.width * WATERMARK_WIDTH_RATIO) / boundsWidth;
+  const centerX = (WATERMARK_BOUNDS.x1 + WATERMARK_BOUNDS.x2) / 2;
+  const centerY = (WATERMARK_BOUNDS.y1 + WATERMARK_BOUNDS.y2) / 2;
+  const transform = `translate(${info.width / 2} ${info.height / 2}) scale(${scale}) translate(${-centerX} ${-centerY})`;
   const svg = `<svg width="${info.width}" height="${info.height}" xmlns="http://www.w3.org/2000/svg">
-    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
-      font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700"
-      letter-spacing="2" fill="#ffffff" fill-opacity="0.55"
-      stroke="#000000" stroke-opacity="0.35" stroke-width="${strokeWidth}">${WATERMARK_TEXT}</text>
+    <g transform="${transform}">
+      <path d="${WATERMARK_PATH}" fill="none" stroke="#000000" stroke-opacity="0.6" stroke-width="7" stroke-linejoin="round"/>
+      <path d="${WATERMARK_PATH}" fill="#ffffff" fill-opacity="0.88"/>
+    </g>
   </svg>`;
 
-  return sharp(data)
-    .composite([{ input: Buffer.from(svg), gravity: "center" }])
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
+    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
     .jpeg({ quality: OUTPUT_QUALITY })
     .toBuffer();
 }
@@ -213,6 +231,52 @@ export async function saveListingImage(
 
   const storageKey = `${listingId}/${key}`;
   return { imageUrl: `${PUBLIC_BASE_PATH}/${storageKey}`, storageKey };
+}
+
+// How many photos are decoded/resized/watermarked at the same time. Each one
+// briefly holds a full decoded frame in memory, so this stays small — enough
+// to overlap the CPU work with the disk writes without a many-photo listing
+// spiking memory on shared hosting.
+const BATCH_CONCURRENCY = 3;
+
+/**
+ * Saves several listing photos at once, keeping the caller's order in the
+ * result. All-or-nothing: if any file is rejected, the ones already written
+ * are deleted again and the first error is thrown, so a failed batch never
+ * leaves orphaned files behind.
+ */
+export async function saveListingImages(
+  listingId: string,
+  files: File[]
+): Promise<{ imageUrl: string; storageKey: string }[]> {
+  const results: ({ imageUrl: string; storageKey: string } | undefined)[] = new Array(files.length);
+  let nextIndex = 0;
+  let failed = false;
+  let firstError: unknown;
+
+  async function worker() {
+    while (!failed) {
+      const i = nextIndex++;
+      if (i >= files.length) return;
+      try {
+        results[i] = await saveListingImage(listingId, files[i]!);
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          firstError = error;
+        }
+        return;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, files.length) }, worker));
+
+  if (failed) {
+    await Promise.all(results.filter((r) => r !== undefined).map((r) => deleteListingImage(r.storageKey)));
+    throw firstError;
+  }
+  return results as { imageUrl: string; storageKey: string }[];
 }
 
 export async function deleteListingImage(storageKey: string): Promise<void> {

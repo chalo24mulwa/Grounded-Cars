@@ -1,5 +1,5 @@
 import "server-only";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireRole, AuthorizationError } from "@/server/authorization/ownership";
@@ -7,8 +7,6 @@ import { recordAuditLog } from "@/server/services/audit-service";
 import { notify } from "@/server/services/notification-service";
 import { createModeratorSchema, type CreateModeratorInput } from "@/server/validation/moderator-schema";
 import type { UserRole, UserStatus, ListingStatus } from "@prisma/client";
-
-const BCRYPT_ROUNDS = 12;
 
 /**
  * Marketplace summary metrics for the admin dashboard. Every count here is
@@ -258,7 +256,7 @@ export async function createModeratorAccount(input: CreateModeratorInput) {
     throw new DuplicateModeratorEmailError();
   }
 
-  const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(data.password);
 
   const moderator = await prisma.user.create({
     data: {

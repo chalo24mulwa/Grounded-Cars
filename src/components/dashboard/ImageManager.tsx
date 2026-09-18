@@ -11,6 +11,7 @@ import {
   setPrimaryImageAction,
   reorderListingImagesAction,
 } from "@/server/actions/listing-actions";
+import { compressImageForUpload } from "@/lib/client-image";
 
 // UI-only hints — the server (src/lib/storage.ts) is the authoritative
 // validator regardless of what this accepts client-side. Not imported from
@@ -35,25 +36,30 @@ export function ImageManager({ listingId, images }: { listingId: string; images:
   function handleFiles(fileList: FileList | null) {
     if (!fileList) return;
 
-    Array.from(fileList).forEach((file) => {
+    Array.from(fileList).forEach((original) => {
       const key = `${Date.now()}-${Math.random()}`;
-      const previewUrl = URL.createObjectURL(file);
+      const previewUrl = URL.createObjectURL(original);
       setPending((prev) => [...prev, { key, previewUrl, status: "uploading" }]);
 
-      const formData = new FormData();
-      formData.set("file", file);
-
-      uploadListingImageAction(listingId, {}, formData).then((result) => {
-        if (result.success) {
-          setPending((prev) => prev.filter((p) => p.key !== key));
-          URL.revokeObjectURL(previewUrl);
-          router.refresh();
-        } else {
-          setPending((prev) =>
-            prev.map((p) => (p.key === key ? { ...p, status: "error", error: result.error } : p))
-          );
-        }
-      });
+      // Shrunk in the browser first so the upload is a few hundred KB, not
+      // the multi-MB original straight off a phone camera.
+      compressImageForUpload(original)
+        .then((file) => {
+          const formData = new FormData();
+          formData.set("file", file);
+          return uploadListingImageAction(listingId, {}, formData);
+        })
+        .then((result) => {
+          if (result.success) {
+            setPending((prev) => prev.filter((p) => p.key !== key));
+            URL.revokeObjectURL(previewUrl);
+            router.refresh();
+          } else {
+            setPending((prev) =>
+              prev.map((p) => (p.key === key ? { ...p, status: "error", error: result.error } : p))
+            );
+          }
+        });
     });
   }
 

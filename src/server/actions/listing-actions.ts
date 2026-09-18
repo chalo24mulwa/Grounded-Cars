@@ -11,6 +11,7 @@ import {
   archiveListing,
   restoreListingToDraft,
   addListingImage,
+  addListingImages,
   removeListingImage,
   reorderListingImages,
   setPrimaryListingImage,
@@ -200,12 +201,11 @@ export async function createListingFormAction(
   try {
     listing = await createListing(parsed.data);
 
-    // Uploaded in selection order, reusing the same per-file upload path as
-    // the edit page's photo manager — the first photo becomes the cover
-    // image, exactly as addListingImage already does for any listing.
-    for (const photo of photos) {
-      await addListingImage(listing.id, photo);
-    }
+    // Uploaded in selection order — the first photo becomes the cover image,
+    // same as addListingImage does for any listing. Done as one batch (see
+    // addListingImages) rather than a per-photo loop, which repeated the
+    // ownership check and photo count for every single photo.
+    await addListingImages(listing.id, photos);
 
     if (intent === "submit") {
       await submitListingForReview(listing.id);

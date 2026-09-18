@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, retryOnTransientConnectionError } from "@/lib/prisma";
 import { requireRole } from "@/server/authorization/ownership";
 
 // ----------------------------------------------------------------------------
@@ -37,15 +37,21 @@ export async function recordAuditLog(
   entityId: string,
   metadata?: Record<string, unknown>
 ) {
-  return prisma.auditLog.create({
-    data: {
-      actorUserId,
-      action,
-      entityType,
-      entityId,
-      metadata: metadata as Prisma.InputJsonValue | undefined,
-    },
-  });
+  const data = {
+    actorUserId,
+    action,
+    entityType,
+    entityId,
+    metadata: metadata as Prisma.InputJsonValue | undefined,
+  };
+
+  // The global Prisma retry only covers reads (a write that fails mid-commit
+  // could double-apply). This write is safe to retry on a dropped connection:
+  // the worst case is one duplicate audit row, whereas failing here — which is
+  // always AFTER the admin action it records has already been committed —
+  // used to surface as "Something went wrong" for an action that had in fact
+  // succeeded.
+  return retryOnTransientConnectionError(() => prisma.auditLog.create({ data }), 3, "AuditLog.create");
 }
 
 /** Admin-only, most recent first. */

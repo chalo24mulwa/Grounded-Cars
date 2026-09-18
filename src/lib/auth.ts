@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google, { type GoogleProfile } from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { authConfig } from "@/lib/auth.config";
@@ -53,8 +53,19 @@ export const { handlers, signIn, signOut, auth, unstable_update: updateSession }
         if (!user || !user.passwordHash) return null;
         if (user.status !== "ACTIVE") return null;
 
-        const passwordValid = await bcrypt.compare(password, user.passwordHash);
-        if (!passwordValid) return null;
+        const { valid, needsRehash } = await verifyPassword(password, user.passwordHash);
+        if (!valid) return null;
+
+        // The password was right but the stored hash is the older, slower
+        // bcrypt format — save a fresh scrypt hash now (we have the plaintext
+        // only at this moment) so this user's future logins are fast. Best
+        // effort and deliberately not awaited: sign-in must never wait on, or
+        // fail because of, this housekeeping write.
+        if (needsRehash) {
+          void hashPassword(password)
+            .then((passwordHash) => prisma.user.update({ where: { id: user.id }, data: { passwordHash } }))
+            .catch((error) => console.error("Failed to upgrade password hash:", error));
+        }
 
         return {
           id: user.id,

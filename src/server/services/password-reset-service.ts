@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { buildNotificationEmail } from "@/lib/email-templates";
@@ -29,7 +29,6 @@ import {
 // visible via devResetUrl.
 // ----------------------------------------------------------------------------
 
-const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export class InvalidOrExpiredTokenError extends Error {
@@ -99,7 +98,7 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
     throw new InvalidOrExpiredTokenError();
   }
 
-  const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(data.newPassword);
 
   await prisma.$transaction([
     prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),

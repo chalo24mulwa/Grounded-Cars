@@ -20,6 +20,7 @@ import type { ListingStatus, Prisma, VehicleCategory } from "@prisma/client";
 import { slugify } from "@/lib/slugify";
 import {
   saveListingImage,
+  saveListingImages,
   deleteListingImage,
   MAX_IMAGES_PER_LISTING,
   InvalidImageError,
@@ -148,6 +149,12 @@ export async function changeListingStatus(
   // a notification/email failure can never roll back a real status change.
   // Each branch below fires on one specific edge, not on every status
   // change, matching exactly the events the Phase 8 spec lists.
+  //
+  // They're also deliberately NOT awaited: each one is several database
+  // round trips plus sending an email, none of which the person who clicked
+  // "Approve" needs to sit through — the status change they asked for is
+  // already committed. This app runs as a long-lived Node process, so the
+  // work simply finishes in the background after the response is sent.
   const fromStatus = listing.status;
 
   if (toStatus === "SOLD" && fromStatus !== "SOLD") {
@@ -155,7 +162,7 @@ export async function changeListingStatus(
       where: { listingId },
       select: { userId: true },
     });
-    await Promise.all([
+    void Promise.all([
       ...favoriters.map((f) =>
         notify({
           userId: f.userId,
@@ -174,7 +181,7 @@ export async function changeListingStatus(
       }),
     ]);
   } else if (fromStatus === "PENDING" && toStatus === "ACTIVE") {
-    await notify({
+    void notify({
       userId: listing.sellerId,
       type: "LISTING_APPROVED",
       vars: { listingTitle: listing.title },
@@ -182,7 +189,7 @@ export async function changeListingStatus(
       relatedEntityId: listingId,
     });
   } else if (fromStatus === "PENDING" && toStatus === "DRAFT") {
-    await notify({
+    void notify({
       userId: listing.sellerId,
       type: "LISTING_REJECTED",
       vars: { listingTitle: listing.title, reason: note ?? "" },
@@ -672,9 +679,20 @@ export const CATEGORY_LABELS: Record<VehicleCategory, string> = {
  * one groupBy, not one query per category. Every category is always
  * present in the result (defaulted to 0) so the dropdown never has to
  * guess whether a missing entry means "zero" or "not fetched yet". */
-export async function getCategoryCounts(): Promise<
-  { value: VehicleCategory; label: string; count: number }[]
-> {
+type CategoryCount = { value: VehicleCategory; label: string; count: number };
+
+// The header runs this on literally every page, so it used to add a database
+// round trip (a full groupBy) to every single page view just to draw a few
+// numbers in a dropdown. A minute of staleness in those counts is invisible;
+// the round trip is not. Kept in memory per server process, with concurrent
+// callers sharing one in-flight query. If a refresh fails (a dropped database
+// connection), the last good value is served instead of failing the whole
+// page over a dropdown badge.
+const CATEGORY_COUNTS_TTL_MS = 60_000;
+let categoryCountsCache: { value: CategoryCount[]; fetchedAt: number } | null = null;
+let categoryCountsInFlight: Promise<CategoryCount[]> | null = null;
+
+async function fetchCategoryCounts(): Promise<CategoryCount[]> {
   const rows = await prisma.carListing.groupBy({
     by: ["category"],
     where: { status: { in: publicListingStatuses() } },
@@ -687,6 +705,28 @@ export async function getCategoryCounts(): Promise<
     label: CATEGORY_LABELS[value],
     count: counts.get(value) ?? 0,
   }));
+}
+
+export async function getCategoryCounts(): Promise<CategoryCount[]> {
+  if (categoryCountsCache && Date.now() - categoryCountsCache.fetchedAt < CATEGORY_COUNTS_TTL_MS) {
+    return categoryCountsCache.value;
+  }
+
+  categoryCountsInFlight ??= fetchCategoryCounts()
+    .then((value) => {
+      categoryCountsCache = { value, fetchedAt: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      categoryCountsInFlight = null;
+    });
+
+  try {
+    return await categoryCountsInFlight;
+  } catch (error) {
+    if (categoryCountsCache) return categoryCountsCache.value;
+    throw error;
+  }
 }
 
 /** Ownership-checked fetch for the seller's own edit/manage-images page. */
@@ -798,6 +838,47 @@ export async function addListingImage(listingId: string, file: File) {
       altText: defaultListingImageAltText(listing),
     },
   });
+}
+
+/**
+ * Adds several photos to a listing in one go — same checks and result as
+ * calling addListingImage() once per file, but the ownership check and photo
+ * count happen once instead of per photo, the photos are processed
+ * concurrently, and the rows are inserted in a single query. Order is
+ * preserved (the first photo of an empty listing becomes the cover).
+ * All-or-nothing: a rejected file fails the whole batch and leaves nothing
+ * behind on disk or in the database.
+ */
+export async function addListingImages(listingId: string, files: File[]) {
+  if (files.length === 0) return;
+
+  const { user, listing } = await requireListingOwnership(listingId);
+  for (let i = 0; i < files.length; i++) {
+    checkRateLimit(`image-upload:${user.id}`, { max: 40, windowMs: 60 * 60 * 1000 });
+  }
+
+  const existingCount = await prisma.carImage.count({ where: { listingId: listing.id } });
+  if (existingCount + files.length > MAX_IMAGES_PER_LISTING) {
+    throw new InvalidImageError(`A listing can have at most ${MAX_IMAGES_PER_LISTING} photos.`);
+  }
+
+  const saved = await saveListingImages(listing.id, files);
+
+  try {
+    await prisma.carImage.createMany({
+      data: saved.map((image, i) => ({
+        listingId: listing.id,
+        imageUrl: image.imageUrl,
+        storageKey: image.storageKey,
+        displayOrder: existingCount + i,
+        isPrimary: existingCount + i === 0,
+        altText: defaultListingImageAltText(listing),
+      })),
+    });
+  } catch (error) {
+    await Promise.all(saved.map((image) => deleteListingImage(image.storageKey)));
+    throw error;
+  }
 }
 
 /** "2018 Toyota Harrier for sale in Nairobi Kenya" — real listing facts

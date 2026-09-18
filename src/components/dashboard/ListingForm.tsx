@@ -7,6 +7,7 @@ import {
   updateListingFormAction,
   type ListingFormState,
 } from "@/server/actions/listing-actions";
+import { compressImageForUpload } from "@/lib/client-image";
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand";
@@ -70,6 +71,9 @@ export function ListingForm({
   // page's photo manager already uses.
   const [photos, setPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  // Counts photo batches still being shrunk in the browser; submitting while
+  // any are in flight would silently leave those photos out.
+  const [preparing, setPreparing] = useState(0);
   const [clickedIntent, setClickedIntent] = useState<"submit" | "draft" | null>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,14 +93,24 @@ export function ListingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handlePhotoPick(fileList: FileList | null) {
+  async function handlePhotoPick(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const room = MAX_PHOTOS - photos.length;
     const incoming = Array.from(fileList).slice(0, Math.max(0, room));
     setPhotoError(fileList.length > incoming.length ? `You can add up to ${MAX_PHOTOS} photos.` : null);
     if (incoming.length === 0) return;
-    const staged = incoming.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
-    setPhotos((prev) => [...prev, ...staged]);
+
+    // Shrunk in the browser before staging so the actual submit uploads a few
+    // hundred KB per photo instead of the multi-MB originals — the biggest
+    // single factor in how long "Submit" takes on a mobile connection.
+    setPreparing((n) => n + 1);
+    try {
+      const prepared = await Promise.all(incoming.map(compressImageForUpload));
+      const staged = prepared.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+      setPhotos((prev) => [...prev, ...staged].slice(0, MAX_PHOTOS));
+    } finally {
+      setPreparing((n) => n - 1);
+    }
   }
 
   function removePhoto(index: number) {
@@ -148,6 +162,11 @@ export function ListingForm({
           <input ref={photosInputRef} type="file" name="photos" multiple className="hidden" />
 
           {photoError && <p className="mt-2 text-xs text-red-600">{photoError}</p>}
+          {preparing > 0 && (
+            <p className="mt-2 text-xs text-slate-500" role="status">
+              Preparing photos…
+            </p>
+          )}
 
           {photos.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -450,7 +469,7 @@ export function ListingForm({
             type="submit"
             name="intent"
             value="submit"
-            disabled={pending}
+            disabled={pending || preparing > 0}
             onClick={() => setClickedIntent("submit")}
             className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-60"
           >
@@ -460,7 +479,7 @@ export function ListingForm({
             type="submit"
             name="intent"
             value="draft"
-            disabled={pending}
+            disabled={pending || preparing > 0}
             onClick={() => setClickedIntent("draft")}
             className="rounded-md border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-brand-subtle disabled:opacity-60"
           >

@@ -1,5 +1,5 @@
 import "server-only";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
   registerUserSchema,
@@ -10,8 +10,6 @@ import {
   type ChangePasswordInput,
 } from "@/server/validation/user-schema";
 import { requireAuth, AuthorizationError } from "@/server/authorization/ownership";
-
-const BCRYPT_ROUNDS = 12;
 
 export class EmailAlreadyRegisteredError extends Error {
   constructor() {
@@ -43,7 +41,7 @@ export async function registerUser(input: RegisterUserInput) {
     throw new EmailAlreadyRegisteredError();
   }
 
-  const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(data.password);
 
   const user = await prisma.user.create({
     data: {
@@ -103,12 +101,12 @@ export async function changePassword(input: ChangePasswordInput) {
     throw new AuthorizationError("Password changes aren't available for this account.");
   }
 
-  const currentPasswordValid = await bcrypt.compare(data.currentPassword, dbUser.passwordHash);
+  const { valid: currentPasswordValid } = await verifyPassword(data.currentPassword, dbUser.passwordHash);
   if (!currentPasswordValid) {
     throw new InvalidCurrentPasswordError();
   }
 
-  const passwordHash = await bcrypt.hash(data.newPassword, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(data.newPassword);
   await prisma.user.update({ where: { id: currentUser.id }, data: { passwordHash } });
 }
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
@@ -42,6 +43,15 @@ export class AccountSuspendedError extends AuthorizationError {
   }
 }
 
+// React's cache() memoizes per request, so one request that goes through
+// several authorization helpers (e.g. an approval action checks the role, then
+// the listing service checks it again) pays for this lookup once instead of
+// once per helper. It never carries over between requests — each new request
+// still re-reads the live status, so suspension still takes effect immediately.
+const getAccountStatus = cache((userId: string) =>
+  prisma.user.findUnique({ where: { id: userId }, select: { status: true } })
+);
+
 /**
  * Returns the current session's user, or throws if not authenticated.
  *
@@ -65,10 +75,7 @@ export async function requireAuth() {
     throw new AuthenticationError();
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { status: true },
-  });
+  const dbUser = await getAccountStatus(session.user.id);
   if (!dbUser || dbUser.status !== "ACTIVE") {
     throw new AccountSuspendedError();
   }

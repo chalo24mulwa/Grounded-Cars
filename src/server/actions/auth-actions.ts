@@ -126,23 +126,29 @@ export async function loginAction(
   // authorize() function (src/lib/auth.ts) — this lookup never substitutes
   // for that check, and a wrong password below still fails regardless of
   // what this returned.
-  const existingUser = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-    select: { role: true },
-  });
+  //
+  // Started here but not awaited until after sign-in: it's an independent
+  // read, so it now overlaps the password check instead of adding a full
+  // database round trip in front of it. `.catch` so a failed lookup (which
+  // only affects which page you land on) can never fail the login itself.
+  const roleLookup = prisma.user
+    .findUnique({ where: { email: parsed.data.email }, select: { role: true } })
+    .catch(() => null);
   const callbackUrl = safeCallbackUrl(String(formData.get("callbackUrl") ?? ""));
-  const destination = callbackUrl ?? roleDestination(existingUser?.role ?? "BUYER");
 
   try {
-    await signIn("credentials", { ...parsed.data, redirectTo: destination });
+    // `redirect: false` so the destination can be chosen after the lookup
+    // above has finished — the session cookie is still set exactly as before.
+    await signIn("credentials", { ...parsed.data, redirect: false });
   } catch (error) {
     if (error instanceof AuthError) {
       return { error: "Invalid email or password." };
     }
-    throw error; // includes NEXT_REDIRECT on success — must propagate
+    throw error;
   }
 
-  return {};
+  const existingUser = await roleLookup;
+  redirect(callbackUrl ?? roleDestination(existingUser?.role ?? "BUYER"));
 }
 
 export async function logoutAction(): Promise<void> {
