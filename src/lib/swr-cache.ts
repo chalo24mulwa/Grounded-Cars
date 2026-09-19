@@ -110,6 +110,23 @@ export class SwrCache {
     }
   }
 
+  /**
+   * Loads `key` ahead of anyone asking for it, so the first real request
+   * finds it ready. Does nothing if a usable value is already stored (fresh
+   * or stale-but-servable — get() refreshes those itself), and resolves once
+   * the load finishes. Never throws: a failed warm-up just means the first
+   * real request loads it the normal way.
+   */
+  async warm<T>(key: string, loader: () => Promise<T>): Promise<void> {
+    const entry = this.store.entries.get(key);
+    if (entry && Date.now() - entry.fetchedAt < this.options.maxStaleMs) return;
+    try {
+      await this.load(key, loader);
+    } catch (error) {
+      console.error(`[cache:${this.options.name}] warm-up failed:`, error);
+    }
+  }
+
   async get<T>(key: string, loader: () => Promise<T>): Promise<T> {
     const entry = this.store.entries.get(key);
     const age = entry ? Date.now() - entry.fetchedAt : Infinity;

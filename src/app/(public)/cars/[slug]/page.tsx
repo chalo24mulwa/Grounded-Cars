@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -178,10 +179,10 @@ export default async function CarDetailPage({
     return <MakeBrowsePage make={make} />;
   }
 
-  const [session, relatedListings] = await Promise.all([
-    auth(),
-    getRelatedListings(listing),
-  ]);
+  // Related vehicles are deliberately NOT awaited here — see
+  // RelatedListingsSection below: the listing itself renders immediately and
+  // that section streams in behind it.
+  const session = await auth();
   const favoriteIds = session?.user ? await getMyFavoriteListingIds() : new Set<string>();
 
   const isSold = listing.status === "SOLD";
@@ -393,25 +394,75 @@ export default async function CarDetailPage({
         </div>
       )}
 
-      {/* Ranked by price closeness + title/description overlap within the
-          same category (see getRelatedListings in listing-service.ts) —
-          never empty-but-rendered: the whole section is skipped when
-          nothing qualifies (e.g. the only other listing on the site). */}
-      {relatedListings.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold text-slate-900">Other Related Vehicles</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {relatedListings.map((related) => (
-              <CarCard
-                key={related.id}
-                listing={related}
-                isFavorited={favoriteIds.has(related.id)}
-                isAuthenticated={Boolean(session?.user)}
-              />
-            ))}
+      <Suspense fallback={<RelatedListingsSkeleton />}>
+        <RelatedListingsSection
+          listing={listing}
+          favoriteIds={favoriteIds}
+          isAuthenticated={Boolean(session?.user)}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+type PublicListing = NonNullable<Awaited<ReturnType<typeof getPublicListingBySlug>>>;
+
+// Ranked by price closeness + title/description overlap within the same
+// category (see getRelatedListings in listing-service.ts) — never
+// empty-but-rendered: the whole section is skipped when nothing qualifies
+// (e.g. the only other listing on the site).
+//
+// Its own async component inside a <Suspense> boundary so the page above —
+// photos, price, specs, contact form: everything the visitor came for — is
+// sent as soon as the listing itself is loaded, instead of waiting for the
+// several extra queries this section needs. Everything that decides whether
+// the page exists (the listing lookup and its notFound()) happens before
+// this, so the HTTP status is unaffected.
+async function RelatedListingsSection({
+  listing,
+  favoriteIds,
+  isAuthenticated,
+}: {
+  listing: PublicListing;
+  favoriteIds: Set<string>;
+  isAuthenticated: boolean;
+}) {
+  const relatedListings = await getRelatedListings(listing);
+  if (relatedListings.length === 0) return null;
+
+  return (
+    <div className="mt-8">
+      <h2 className="mb-3 text-lg font-semibold text-slate-900">Other Related Vehicles</h2>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        {relatedListings.map((related) => (
+          <CarCard
+            key={related.id}
+            listing={related}
+            isFavorited={favoriteIds.has(related.id)}
+            isAuthenticated={isAuthenticated}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RelatedListingsSkeleton() {
+  return (
+    <div className="mt-8" aria-hidden="true">
+      <div className="mb-3 h-6 w-56 animate-pulse rounded bg-slate-200" />
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="aspect-[4/3] w-full animate-pulse bg-slate-200" />
+            <div className="space-y-2 p-4">
+              <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
+              <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200" />
+            </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }

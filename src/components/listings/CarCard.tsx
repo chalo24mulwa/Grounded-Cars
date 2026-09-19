@@ -5,6 +5,7 @@ import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
 import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
 import { CarCardImageCarousel } from "@/components/listings/CarCardImageCarousel";
+import { CardLinkPending } from "@/components/listings/CardLinkPending";
 import type { CarListing, CarImage, ListingStatus } from "@prisma/client";
 
 type CarCardProps = {
@@ -67,6 +68,8 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false 
         </p>
         {listing.location && <p className="text-xs text-slate-400">{listing.location}</p>}
       </div>
+
+      <CardLinkPending />
     </Link>
   );
 }

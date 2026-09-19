@@ -5,7 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { archiveListingByAdminAction } from "@/server/actions/admin-actions";
+import { archiveListingByAdminAction, deleteListingPermanentlyAction } from "@/server/actions/admin-actions";
+import { ConfirmActionButton } from "@/components/dashboard/ConfirmActionButton";
 import type { ListingStatus } from "@prisma/client";
 
 type AdminListing = {
@@ -99,6 +100,17 @@ export function AdminListingRow({ listing }: { listing: AdminListing }) {
                 Archive (inappropriate)
               </button>
             )}
+            {/* Available on every status, unlike Archive above — this is the
+                admin's way to remove any listing outright (spam, test
+                data, a seller's request) and reclaim its photo storage. */}
+            <ConfirmActionButton
+              label="Delete permanently"
+              variant="danger"
+              confirmTitle="Delete this listing permanently?"
+              confirmMessage={`"${listing.title}" will be deleted for good, together with all of its photos and files. This can't be undone. No reason is needed, and the seller is not notified.`}
+              confirmLabel="Delete permanently"
+              onAction={() => deleteListingPermanentlyAction(listing.id)}
+            />
           </div>
         ) : (
           <div className="mt-3 space-y-2">

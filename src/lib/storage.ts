@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { writeFile, mkdir, unlink } from "node:fs/promises";
+import { writeFile, mkdir, unlink, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { WATERMARK_PATH, WATERMARK_BOUNDS } from "@/lib/watermark-path";
@@ -290,6 +290,34 @@ export async function deleteListingImage(storageKey: string): Promise<void> {
       console.error(`Failed to delete listing image file ${storageKey}:`, error);
     }
   }
+}
+
+/**
+ * Erases everything stored on disk for one listing by removing its whole
+ * folder — every photo file, plus anything else that ever landed there (e.g.
+ * an orphan left behind by a failed upload) — to free the space it used.
+ * Returns how many files were removed. A listing with no folder (never had
+ * photos, or already cleaned up) is not an error.
+ */
+export async function deleteListingFiles(listingId: string): Promise<number> {
+  // Listing ids are cuids, but this deletes a directory tree, so refuse
+  // anything that could resolve outside the listings folder: the allowed
+  // characters contain no path separators and no dots.
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(listingId)) {
+    throw new Error("Refusing to delete files for an invalid listing id.");
+  }
+  const dir = path.join(UPLOAD_DIR, listingId);
+
+  let fileCount: number;
+  try {
+    fileCount = (await readdir(dir)).length;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw error;
+  }
+
+  await rm(dir, { recursive: true, force: true });
+  return fileCount;
 }
 
 // Event flyers/photos — same validation, own directory, no per-event

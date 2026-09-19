@@ -9,3 +9,19 @@ body {
      backgrounds, so they still stand out clearly against this. */
   @apply bg-brand-mist text-slate-900;
 }
+
+/* Fades in the dimming veil + spinner shown over a listing card while it's
+   opening (see CardLinkPending) after a short delay, so a navigation that
+   completes almost immediately doesn't flash it. */
+@keyframes link-pending-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.link-pending-veil {
+  animation: link-pending-in 150ms ease-out 100ms both;
+}

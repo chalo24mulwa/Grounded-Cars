@@ -6,6 +6,7 @@ import {
   approveListing,
   rejectListing,
   archiveListingByAdmin,
+  deleteListingPermanently,
 } from "@/server/services/listing-service";
 import { createFeaturedPlan, setFeaturedPlanActive } from "@/server/services/featured-service";
 import {
@@ -171,6 +172,32 @@ export async function archiveListingByAdminAction(
     revalidatePath("/admin/listings");
     revalidatePath("/cars");
     return { success: true, data: { id: listing.id } };
+  } catch (error) {
+    return { success: false, error: toUserSafeError(error) };
+  }
+}
+
+// Permanent, irreversible delete of any listing (any seller, any status) plus
+// all of its stored photos/files. ADMIN only — deliberately not MODERATOR,
+// who can review/approve/send back but never destroy. No reason is taken; the
+// audit entry records who deleted what (title, seller, how many files were
+// erased) so the action itself stays accountable even though the listing
+// doesn't survive.
+export async function deleteListingPermanentlyAction(listingId: string): Promise<ActionResult<null>> {
+  try {
+    const admin = await requireRole("ADMIN");
+    const deleted = await deleteListingPermanently(listingId);
+    await recordAuditLogAfterCommit(admin.id, "LISTING_DELETED_BY_ADMIN", "CarListing", deleted.id, {
+      title: deleted.title,
+      sellerId: deleted.sellerId,
+      filesRemoved: deleted.filesRemoved,
+    });
+    revalidatePath("/admin");
+    revalidatePath("/admin/listings");
+    revalidatePath("/dashboard/listings");
+    revalidatePath("/cars");
+    revalidatePath("/");
+    return { success: true, data: null };
   } catch (error) {
     return { success: false, error: toUserSafeError(error) };
   }

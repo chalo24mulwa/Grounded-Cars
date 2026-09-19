@@ -22,6 +22,7 @@ import {
   saveListingImage,
   saveListingImages,
   deleteListingImage,
+  deleteListingFiles,
   MAX_IMAGES_PER_LISTING,
   InvalidImageError,
 } from "@/lib/storage";
@@ -321,7 +322,7 @@ const listingBySlugCache = new SwrCache({
 });
 
 async function loadPublicListingBySlug(slug: string) {
-  const listing = await prisma.carListing.findFirst({
+  const found = await prisma.carListing.findFirst({
     where: {
       slug,
       status: { in: publicListingStatuses() },
@@ -329,24 +330,44 @@ async function loadPublicListingBySlug(slug: string) {
     include: {
       images: { orderBy: { displayOrder: "asc" } },
       seller: { select: { id: true, name: true, phone: true } },
+      // Fetched here, alongside images and seller (which Prisma loads in
+      // parallel), only to work out isFeatured below — it used to be a
+      // separate lookup made after everything else, one more full database
+      // round trip on every cold listing load.
+      featuredSubscriptions: {
+        where: { status: "ACTIVE", expiresAt: { gt: new Date() } },
+        select: { id: true },
+        take: 1,
+      },
     },
   });
 
-  if (!listing) return null;
+  if (!found) return null;
+  const { featuredSubscriptions, ...listing } = found;
 
   // Same live computation as getPublicListings() below — a listing is only
   // "featured" while it has an ACTIVE, unexpired subscription AND is
   // itself still ACTIVE (this fetch already guarantees non-SOLD-only
   // callers see the right thing, but a SOLD listing must never show the
   // Verified badge even though it can still be publicly visible).
-  const activeFeature =
-    listing.status === "ACTIVE"
-      ? await prisma.featuredSubscription.findFirst({
-          where: { listingId: listing.id, status: "ACTIVE", expiresAt: { gt: new Date() } },
-        })
-      : null;
+  return { ...listing, isFeatured: listing.status === "ACTIVE" && featuredSubscriptions.length > 0 };
+}
 
-  return { ...listing, isFeatured: Boolean(activeFeature) };
+// Loads listing details ahead of time for listings that were just shown on a
+// list page, so that clicking one finds it already in memory instead of
+// starting a chain of database queries. Runs in the background (never awaited
+// by a request) and skips anything already stored, so in steady state it does
+// nothing. Two at a time: each load is several queries, and the connection
+// pool is deliberately small. It only warms the cache — it never touches the
+// view counter, which stays with real visits.
+async function primeListingDetails(slugs: string[]): Promise<void> {
+  const queue = [...slugs];
+  async function worker() {
+    for (let slug = queue.shift(); slug !== undefined; slug = queue.shift()) {
+      await listingBySlugCache.warm(slug, () => loadPublicListingBySlug(slug));
+    }
+  }
+  await Promise.all([worker(), worker()]);
 }
 
 const CARD_IMAGE_ORDER_BY = [{ isPrimary: "desc" as const }, { displayOrder: "asc" as const }];
@@ -588,7 +609,18 @@ const publicListingsCache = new SwrCache({
 
 export async function getPublicListings(filters: PublicListingFilters = {}) {
   if (filters.q) return loadPublicListings(filters);
-  return publicListingsCache.get(JSON.stringify(filters), () => loadPublicListings(filters));
+  return publicListingsCache.get(JSON.stringify(filters), async () => {
+    const result = await loadPublicListings(filters);
+    // Only for the unfiltered first page (the homepage and the default /cars
+    // view): those are what nearly every visit starts from, and it keeps
+    // arbitrary filter combinations from each triggering a batch of
+    // background loads.
+    const { sort: _sort, page, ...otherFilters } = filters;
+    if (Object.keys(otherFilters).length === 0 && (page ?? 1) === 1) {
+      void primeListingDetails(result.listings.map((listing) => listing.slug));
+    }
+    return result;
+  });
 }
 
 async function loadPublicListings(filters: PublicListingFilters) {
@@ -846,6 +878,53 @@ export async function rejectListing(listingId: string, reason: string) {
  */
 export async function archiveListingByAdmin(listingId: string, reason: string) {
   return changeListingStatus(listingId, "ARCHIVED", `Archived by admin: ${reason}`);
+}
+
+/**
+ * ADMIN-only. Permanently deletes a listing of any status belonging to any
+ * seller, along with every photo/file stored for it. No reason is taken and
+ * nothing is kept of the listing itself; this is the one deliberately
+ * irreversible listing operation (everything else is archive/soft-state).
+ *
+ * The database rows go first, in one transaction, and the files only after
+ * that succeeds — so a failure can never leave a listing that still exists
+ * but has lost its photos. (The reverse failure, rows gone but files left
+ * behind, is logged and only costs disk space.)
+ *
+ * Photos, status history, favorites and inquiries are removed automatically
+ * by the schema's ON DELETE CASCADE. Featured subscriptions are the one thing
+ * that blocks deletion (ON DELETE RESTRICT), so they're removed explicitly —
+ * their PaymentTransaction rows survive with the link cleared (ON DELETE SET
+ * NULL), because payment records are financial history, not listing content.
+ * Notifications about this listing are removed too: they carry no foreign
+ * key, and would otherwise keep pointing at a page that no longer exists.
+ */
+export async function deleteListingPermanently(listingId: string) {
+  await requireRole("ADMIN");
+
+  const listing = await prisma.carListing.findUnique({
+    where: { id: listingId },
+    select: { id: true, title: true, sellerId: true },
+  });
+  if (!listing) throw new AuthorizationError("Listing not found.");
+
+  await prisma.$transaction([
+    prisma.notification.deleteMany({
+      where: { relatedEntityType: "CarListing", relatedEntityId: listingId },
+    }),
+    prisma.featuredSubscription.deleteMany({ where: { listingId } }),
+    prisma.carListing.delete({ where: { id: listingId } }),
+  ]);
+  invalidateAllSwrCaches();
+
+  let filesRemoved = 0;
+  try {
+    filesRemoved = await deleteListingFiles(listingId);
+  } catch (error) {
+    console.error(`Listing ${listingId} was deleted but its files could not be removed:`, error);
+  }
+
+  return { ...listing, filesRemoved };
 }
 
 /** The most recent rejection reason for a listing, if any — surfaced on
