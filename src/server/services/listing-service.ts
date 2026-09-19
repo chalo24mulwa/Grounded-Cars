@@ -365,6 +365,12 @@ async function primeListingDetails(slugs: string[]): Promise<void> {
   async function worker() {
     for (let slug = queue.shift(); slug !== undefined; slug = queue.shift()) {
       await listingBySlugCache.warm(slug, () => loadPublicListingBySlug(slug));
+      // The "Other Related Vehicles" section is the slowest part of a listing
+      // page, so prepare it too — otherwise it would still arrive seconds
+      // after the rest of the page on a first visit. Uses the same cache key
+      // getRelatedListings() reads.
+      const listing = await listingBySlugCache.get(slug, () => loadPublicListingBySlug(slug));
+      if (listing) await relatedListingsCache.warm(`${listing.id}:8`, () => loadRelatedListings(listing, 8));
     }
   }
   await Promise.all([worker(), worker()]);
@@ -451,7 +457,17 @@ async function loadRelatedListings(listing: RelatedListingSource, limit: number)
   async function candidatesIn(where: Prisma.CarListingWhereInput) {
     return prisma.carListing.findMany({
       where: { status: { in: statuses }, id: { not: listing.id }, ...where },
-      include: { images: { orderBy: CARD_IMAGE_ORDER_BY, take: CARD_IMAGE_PREVIEW_COUNT } },
+      include: {
+        images: { orderBy: CARD_IMAGE_ORDER_BY, take: CARD_IMAGE_PREVIEW_COUNT },
+        // Loaded alongside the photos (Prisma runs both in parallel) to work
+        // out isFeatured below, instead of a separate lookup afterwards for
+        // the chosen few — one fewer sequential database round trip.
+        featuredSubscriptions: {
+          where: { status: "ACTIVE", expiresAt: { gt: new Date() } },
+          select: { id: true },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 60,
     });
@@ -481,19 +497,13 @@ async function loadRelatedListings(listing: RelatedListingSource, limit: number)
   const top = scored.slice(0, limit).map((s) => s.candidate);
 
   // Live isFeatured, same computation as getPublicListings/
-  // getPublicListingBySlug — never a stored flag.
-  const featuredRows = await prisma.featuredSubscription.findMany({
-    where: {
-      status: "ACTIVE",
-      expiresAt: { gt: new Date() },
-      listingId: { in: top.map((c) => c.id) },
-      listing: { status: "ACTIVE" },
-    },
-    select: { listingId: true },
-  });
-  const featuredIds = new Set(featuredRows.map((r) => r.listingId));
-
-  return top.map((c) => ({ ...c, isFeatured: featuredIds.has(c.id) }));
+  // getPublicListingBySlug — never a stored flag: an ACTIVE, unexpired
+  // subscription on a listing that is itself still ACTIVE (a SOLD listing is
+  // never shown as featured).
+  return top.map(({ featuredSubscriptions, ...c }) => ({
+    ...c,
+    isFeatured: c.status === "ACTIVE" && featuredSubscriptions.length > 0,
+  }));
 }
 
 /** Translates a validated filter set into a Prisma WHERE clause. Every
