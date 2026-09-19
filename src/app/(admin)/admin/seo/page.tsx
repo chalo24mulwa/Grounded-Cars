@@ -140,7 +140,7 @@ export default async function AdminSeoPage() {
       )}
 
       <p className="text-xs text-slate-400">
-        Site: {siteConfig.legalName} · Base URL: {APP_URL}
+        Site: {siteConfig.name} · Base URL: {APP_URL}
       </p>
     </div>
   );

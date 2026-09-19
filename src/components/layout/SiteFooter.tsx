@@ -157,7 +157,7 @@ export async function SiteFooter() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto max-w-6xl px-4 py-4 text-xs text-white/60">
-          &copy; {new Date().getFullYear()} {siteConfig.legalName}. All rights reserved.
+          &copy; {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
         </div>
       </div>
     </footer>

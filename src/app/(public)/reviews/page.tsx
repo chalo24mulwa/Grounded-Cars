@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { siteConfig } from "@/config/site";
 import { AVERAGE_RATING, TESTIMONIALS } from "@/components/reviews/testimonials-data";
 import { TestimonialCard } from "@/components/reviews/TestimonialCard";
 import { StarRating } from "@/components/reviews/StarRating";
@@ -12,36 +11,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/reviews" },
 };
 
-// Google's rich-result eligibility for review/aggregateRating markup is
-// limited to a handful of @types — Product, LocalBusiness and its
-// subtypes among them. AutomotiveBusiness (a LocalBusiness subtype) is the
-// closest accurate description of what Car Marketplace actually is, so
-// this is what a search engine/crawler sees even though nothing here is
-// rendered to a visitor.
-function buildJsonLd() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return {
-    "@context": "https://schema.org",
-    "@type": "AutomotiveBusiness",
-    name: siteConfig.legalName,
-    url: `${baseUrl}/reviews`,
-    telephone: siteConfig.contactPhone,
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: AVERAGE_RATING.toFixed(1),
-      reviewCount: TESTIMONIALS.length,
-      bestRating: "5",
-      worstRating: "1",
-    },
-    review: TESTIMONIALS.map((t) => ({
-      "@type": "Review",
-      author: { "@type": "Person", name: t.name },
-      reviewRating: { "@type": "Rating", ratingValue: t.rating, bestRating: "5" },
-      reviewBody: t.quote,
-    })),
-  };
-}
-
+// Deliberately NO structured data (Review / AggregateRating / a second business
+// entity) on this page. These testimonials are hand-written page content (see
+// testimonials-data.ts), not reviews collected from customers through a
+// review system, so presenting them to search engines as genuine review
+// markup would misrepresent them — and the site's one Organization/WebSite
+// identity lives only on the homepage (lib/structured-data.ts).
 // A static content page (no review-submission form — see
 // testimonials-data.ts) surfaced site-wide via ReviewsCta, the banner
 // mounted just above <SiteFooter> in the root layout.
@@ -50,12 +25,6 @@ export default function ReviewsPage() {
 
   return (
     <div>
-      {/* eslint-disable-next-line react/no-danger -- static, hand-written
-          data only (see testimonials-data.ts), never user input */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd()) }}
-      />
 
       {/* Hero — same brand gradient sweep as the About Us page's hero, for
           a consistent look across the site's informational pages. */}

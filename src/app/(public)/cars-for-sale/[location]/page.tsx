@@ -30,7 +30,7 @@ export async function generateMetadata({
   const location = await findMatchingLocation(param);
   if (!location) return {};
 
-  const title = `Cars for Sale in ${location} | ${siteConfig.legalName}`;
+  const title = `Cars for Sale in ${location} | ${siteConfig.name}`;
   return {
     title: { absolute: title },
     description: `Browse verified cars for sale in ${location}, Kenya — locally used vehicles and fresh imports from sellers and dealers on ${siteConfig.name}.`,

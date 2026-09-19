@@ -1,14 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
-// The exact SEO title provided ("Car Marketplace Kenya | Buy & Sell Cars
-// Online") is meant to be the full <title> tag as-is — using the plain
-// `title` string here would still run through the root layout's
-// `template: "%s | Car Marketplace"` and append a second, redundant
-// "| Car Marketplace" suffix. `title.absolute` is Next.js's documented way
-// to opt one page out of the parent template entirely.
+// The About page is where the brand is explained, so its title leads with the
+// name ("About Car Marketplace | ..."). Using the plain `title` string would
+// run through the root layout's `template: "%s | Car Marketplace"` and repeat
+// the name; `title.absolute` is Next.js's documented way to opt one page out
+// of the parent template entirely.
 export const metadata: Metadata = {
-  title: { absolute: "Car Marketplace Kenya | Buy & Sell Cars Online" },
+  title: { absolute: "About Car Marketplace | Buy & Sell Cars Online in Kenya" },
   description:
     "Car Marketplace is a fast-growing Kenyan online car marketplace where dealers and car owners can list vehicles for free and connect with targeted buyers. Find, buy and sell cars across Kenya while supporting community initiatives.",
   alternates: { canonical: "/about-us" },

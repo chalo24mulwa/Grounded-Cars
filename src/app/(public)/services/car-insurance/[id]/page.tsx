@@ -23,9 +23,11 @@ export async function generateMetadata({
     description,
     alternates: { canonical: `/services/car-insurance/${policy.id}` },
     openGraph: {
+      type: "website",
+      siteName: siteConfig.name,
       title: policy.title,
       description,
-      images: policy.imageUrl ? [{ url: policy.imageUrl }] : undefined,
+      images: policy.imageUrl ? [{ url: policy.imageUrl }] : [siteConfig.shareImage],
     },
   };
 }

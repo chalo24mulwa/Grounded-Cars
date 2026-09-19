@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedEventById } from "@/server/services/event-service";
+import { siteConfig } from "@/config/site";
 
 export async function generateMetadata({
   params,
@@ -19,9 +20,11 @@ export async function generateMetadata({
     description,
     alternates: { canonical: `/events/${event.id}` },
     openGraph: {
+      type: "website",
+      siteName: siteConfig.name,
       title: event.title,
       description,
-      images: event.imageUrl ? [{ url: event.imageUrl }] : undefined,
+      images: event.imageUrl ? [{ url: event.imageUrl }] : [siteConfig.shareImage],
     },
   };
 }

@@ -8,18 +8,41 @@ import { HeroSearchBar } from "@/components/home/HeroSearchBar";
 import { StickySearchBar } from "@/components/home/StickySearchBar";
 import { BecomeSellerButton } from "@/components/auth/BecomeSellerButton";
 import { siteConfig } from "@/config/site";
+import { buildHomepageJsonLd, serializeJsonLd } from "@/lib/structured-data";
+import type { Metadata } from "next";
 
 const HERO_SECONDARY_BUTTON_CLASS =
   "rounded-md bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 backdrop-blur-sm transition hover:bg-white/20";
 
 // `title.absolute` opts out of the root layout's `template: "%s | Car
-// Marketplace"` (see layout.tsx) — the homepage's title is the site's own
-// full brand string, not "Home | Car Marketplace".
-export const metadata = {
-  title: { absolute: "Car Marketplace Kenya | Buy & Sell Cars in Kenya" },
-  description:
-    "Find quality used cars, locally used vehicles and fresh imports for sale in Kenya. Browse cars from sellers and dealers on Car Marketplace Kenya.",
-  alternates: { canonical: "/" },
+// Marketplace"` (see layout.tsx) — the homepage's title starts with the brand
+// ("Car Marketplace | Buy & Sell Cars in Kenya"), never "Home | Car
+// Marketplace". The Open Graph and Twitter blocks are declared here in full
+// (a page's `openGraph` replaces the layout's rather than merging with it).
+const HOME_URL = `${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "")}/`;
+
+// NOTE: no `alternates.canonical` and no `openGraph.url` here on purpose. Next's
+// metadata API always prints the root URL without its trailing slash
+// ("https://carmarketplace.co.ke"); the two are the same URL, but the intended
+// canonical is the explicit "https://carmarketplace.co.ke/", so those two tags
+// are rendered by hand in the page below — each exactly once, and nowhere else.
+export const metadata: Metadata = {
+  title: { absolute: siteConfig.homeTitle },
+  description: siteConfig.description,
+  openGraph: {
+    type: "website",
+    siteName: siteConfig.name,
+    title: siteConfig.homeTitle,
+    description: siteConfig.description,
+    locale: "en_KE",
+    images: [siteConfig.shareImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.homeTitle,
+    description: siteConfig.description,
+    images: [siteConfig.shareImage.url],
+  },
 };
 
 // How many listings to tease on the homepage before sending the visitor to
@@ -43,6 +66,20 @@ export default async function HomePage() {
 
   return (
     <div>
+      {/* The site's single, authoritative Organization + WebSite structured
+          data (see lib/structured-data.ts) — server-rendered here so it's in
+          the HTML a crawler receives, and declared nowhere else. */}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger -- static site facts only, escaped by serializeJsonLd
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(buildHomepageJsonLd()) }}
+      />
+
+      {/* The homepage's canonical URL and og:url, with the trailing slash (see
+          the note above `metadata`). React 19 hoists these into <head>. */}
+      <link rel="canonical" href={HOME_URL} />
+      <meta property="og:url" content={HOME_URL} />
+
       {/* Flush against the header (no gap) and sticky the same way the
           header is — top offset matches UtilityBar + header's combined
           rendered height (42px utility bar + 52px header) so the two sit
@@ -76,11 +113,18 @@ export default async function HomePage() {
         </div>
 
         <div className="relative mx-auto flex h-[62vh] max-h-[640px] min-h-[420px] w-full max-w-6xl flex-col justify-end px-4 pb-10 sm:pb-14">
-          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide text-white sm:text-lg">
-            Kenya&apos;s trusted car marketplace
-          </span>
-          <h1 className="mt-4 max-w-xl text-3xl font-bold text-white sm:text-4xl md:text-5xl">
-            Find your next car, or sell the one you have
+          {/* The page's one H1 states the brand in plain, visible text: the
+              site name leads (in the same eyebrow styling this line always
+              had) and the existing headline follows, so search engines read
+              "Car Marketplace Kenya — Find your next car, or sell the one you
+              have" as the page's main heading. */}
+          <h1 className="max-w-xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide text-white sm:text-lg">
+              {siteConfig.alternateName}
+            </span>
+            <span className="mt-4 block text-3xl font-bold text-white sm:text-4xl md:text-5xl">
+              Find your next car, or sell the one you have
+            </span>
           </h1>
           <p className="mt-3 max-w-lg text-sm text-white/80 sm:text-base">
             Verified listings, trusted sellers, and dealership-grade services — all in one place.

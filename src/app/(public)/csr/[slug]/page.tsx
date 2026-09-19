@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedCsrInitiativeBySlug } from "@/server/services/csr-service";
 import { isMpesaConfigured } from "@/lib/mpesa";
+import { siteConfig } from "@/config/site";
 import { CarImageGallery } from "@/components/listings/CarImageGallery";
 import { CsrProgressBar } from "@/components/csr/CsrProgressBar";
 import { CsrDonateForm } from "@/components/csr/CsrDonateForm";
@@ -21,9 +22,11 @@ export async function generateMetadata({
     description: initiative.summary,
     alternates: { canonical: `/csr/${initiative.slug}` },
     openGraph: {
+      type: "website",
+      siteName: siteConfig.name,
       title: initiative.title,
       description: initiative.summary,
-      images: initiative.coverImageUrl ? [{ url: initiative.coverImageUrl }] : undefined,
+      images: initiative.coverImageUrl ? [{ url: initiative.coverImageUrl }] : [siteConfig.shareImage],
     },
   };
 }

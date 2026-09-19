@@ -123,7 +123,7 @@ export function renderEmailLayout(bodyHtml: string): string {
       <p style="margin:0 0 20px;font-size:18px;font-weight:700;color:#0f172a;">${siteConfig.name}</p>
       ${bodyHtml}
       <p style="margin:32px 0 0;font-size:12px;color:#94a3b8;">
-        ${siteConfig.legalName} &middot; ${siteConfig.contactPhone}
+        ${siteConfig.name} &middot; ${siteConfig.contactPhone}
       </p>
     </div>
   </body>

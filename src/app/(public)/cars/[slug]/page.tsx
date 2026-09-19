@@ -113,8 +113,8 @@ export async function generateMetadata({
   // seller's own free-text `listing.title` — keeps every listing's <title>
   // in a consistent, predictable, keyword-relevant pattern search engines
   // can rely on ("Toyota Harrier 2018 for Sale in Nairobi | Car
-  // Marketplace Kenya" — the "| Car Marketplace Kenya" suffix comes from
-  // the root layout's own title template, not repeated here). The on-page
+  // Marketplace" — the "| Car Marketplace" suffix comes from the root
+  // layout's own title template, not repeated here). The on-page
   // H1 is unaffected — it still shows the seller's own title as-is.
   const title = isSold
     ? `${listing.year} ${listing.make} ${listing.model} — Sold`
@@ -122,9 +122,11 @@ export async function generateMetadata({
   const description = buildDescription(listing, isSold);
   const canonicalUrl = `${APP_URL}/cars/${listing.slug}`;
   const primaryImage = listing.images.find((img) => img.isPrimary) ?? listing.images[0];
+  // The listing's own cover photo when it has one; otherwise the branded
+  // share card rather than a link preview with no image at all.
   const ogImages = primaryImage
     ? [{ url: primaryImage.imageUrl, alt: primaryImage.altText ?? listing.title }]
-    : undefined;
+    : [siteConfig.shareImage];
 
   return {
     title,
@@ -488,7 +490,7 @@ async function generateMakePageMetadata(param: string): Promise<Metadata> {
   const make = await findMatchingMake(param);
   if (!make) return {};
 
-  const title = `${make} Cars for Sale in Kenya | ${siteConfig.legalName}`;
+  const title = `${make} Cars for Sale in Kenya | ${siteConfig.name}`;
   return {
     title: { absolute: title },
     description: `Browse ${make} cars for sale in Kenya — locally used vehicles and fresh import ${make} imports from verified sellers and dealers on ${siteConfig.name}.`,
