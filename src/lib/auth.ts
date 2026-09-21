@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google, { type GoogleProfile } from "next-auth/providers/google";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import { createAuthAdapter } from "@/lib/auth-adapter";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -36,7 +36,7 @@ const credentialsSchema = z.object({
 
 export const { handlers, signIn, signOut, auth, unstable_update: updateSession } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  adapter: createAuthAdapter(),
   providers: [
     Credentials({
       credentials: {
