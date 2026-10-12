@@ -25,7 +25,7 @@ export function ImportStatusBadge({
       <span
         role="status"
         aria-label={`Import status: ${LABELS[status]}`}
-        className="absolute bottom-2 left-2 z-10 inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-1 ring-brand-deep/40"
+        className="absolute bottom-2 left-2 z-10 inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-1 ring-brand-deep/40 max-sm:bottom-1.5 max-sm:left-1.5 max-sm:px-1.5 max-sm:text-[8px] max-sm:tracking-normal"
       >
         {LABELS[status]}
       </span>

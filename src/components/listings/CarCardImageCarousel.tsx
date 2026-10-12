@@ -102,8 +102,8 @@ export function CarCardImageCarousel({
 
   if (count === 0) {
     return (
-      <div className="relative aspect-[4/3] w-full bg-slate-100">
-        <div className="flex h-full items-center justify-center text-slate-400">
+      <div className="relative aspect-[4/3] w-full bg-slate-100 max-sm:aspect-[3/2]">
+        <div className="flex h-full items-center justify-center text-slate-400 max-sm:text-xs">
           No photo available
         </div>
         {children}
@@ -119,7 +119,7 @@ export function CarCardImageCarousel({
 
   return (
     <div
-      className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100"
+      className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100 max-sm:aspect-[3/2]"
       onTouchStart={count > 1 ? handleTouchStart : undefined}
       onTouchMove={count > 1 ? handleTouchMove : undefined}
       onTouchEnd={count > 1 ? handleTouchEnd : undefined}
@@ -142,7 +142,7 @@ export function CarCardImageCarousel({
                 priority={priority && i === 0}
                 maxWidth={640}
                 className={clsx("object-cover", isSold && "grayscale-[15%]")}
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                sizes="(max-width: 639px) 50vw, (max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                 onError={() => setFailedUrls((prev) => new Set(prev).add(img.imageUrl))}
               />
             )}
@@ -171,7 +171,7 @@ export function CarCardImageCarousel({
             <ChevronIcon direction="right" />
           </button>
 
-          <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1">
+          <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1 max-sm:top-1.5 max-sm:bottom-auto max-sm:left-1.5 max-sm:translate-x-0 max-sm:gap-0.5">
             {visibleImages.map((_, i) => (
               <button
                 key={i}
@@ -180,7 +180,7 @@ export function CarCardImageCarousel({
                 aria-label={`Show photo ${i + 1} of ${count}`}
                 aria-current={i === safeIndex}
                 className={clsx(
-                  "h-1.5 w-1.5 rounded-full shadow-sm transition",
+                  "h-1.5 w-1.5 rounded-full shadow-sm transition max-sm:h-1 max-sm:w-1",
                   i === safeIndex ? "bg-white" : "bg-white/60 hover:bg-white/90"
                 )}
               />

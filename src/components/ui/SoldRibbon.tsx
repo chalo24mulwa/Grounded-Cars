@@ -15,7 +15,7 @@ export function SoldRibbon() {
       <div
         role="status"
         aria-label="This vehicle has been sold"
-        className="absolute -left-12 top-6 w-48 -rotate-45 bg-gradient-to-r from-brand to-brand-deep py-1.5 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-[0_2px_10px_rgba(0,0,0,0.35)] ring-1 ring-white/30"
+        className="absolute -left-12 top-6 w-48 -rotate-45 bg-gradient-to-r from-brand to-brand-deep py-1.5 text-center text-xs font-extrabold uppercase tracking-[0.2em] text-white shadow-[0_2px_10px_rgba(0,0,0,0.35)] ring-1 ring-white/30 max-sm:-left-14 max-sm:top-4 max-sm:py-1 max-sm:text-[10px]"
       >
         Sold
       </div>

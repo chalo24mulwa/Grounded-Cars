@@ -104,7 +104,7 @@ export default async function CarsForSaleLocationPage({
           </Link>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
           {listings.map((listing, i) => (
             <CarCard
               key={listing.id}

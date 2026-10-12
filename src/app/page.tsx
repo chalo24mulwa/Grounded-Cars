@@ -201,7 +201,7 @@ export default async function HomePage() {
             <p className="mt-1 text-sm text-slate-500">Check back soon — new listings are added regularly.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             {featuredListings.map((listing) => (
               <CarCard
                 key={listing.id}

@@ -435,7 +435,7 @@ async function RelatedListingsSection({
   return (
     <div className="mt-8">
       <h2 className="mb-3 text-lg font-semibold text-slate-900">Other Related Vehicles</h2>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-6">
         {relatedListings.map((related) => (
           <CarCard
             key={related.id}
@@ -453,11 +453,11 @@ function RelatedListingsSkeleton() {
   return (
     <div className="mt-8" aria-hidden="true">
       <div className="mb-3 h-6 w-56 animate-pulse rounded bg-slate-200" />
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-6">
         {[0, 1].map((i) => (
           <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="aspect-[4/3] w-full animate-pulse bg-slate-200" />
-            <div className="space-y-2 p-4">
+            <div className="aspect-[3/2] w-full animate-pulse bg-slate-200 sm:aspect-[4/3]" />
+            <div className="space-y-2 p-2 sm:p-4">
               <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200" />
               <div className="h-3 w-1/2 animate-pulse rounded bg-slate-200" />
               <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200" />
@@ -555,7 +555,7 @@ async function MakeBrowsePage({ make }: { make: string }) {
           </Link>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
           {listings.map((listing) => (
             <CarCard
               key={listing.id}

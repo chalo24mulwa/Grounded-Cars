@@ -17,7 +17,7 @@ export function FeaturedBadge({ corner = true }: { corner?: boolean }) {
       <span
         role="status"
         aria-label="Verified featured listing"
-        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-gold to-brand-accent px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-md ring-1 ring-brand-accent/30"
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-brand-gold to-brand-accent px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white shadow-md ring-1 ring-brand-accent/30 max-sm:right-1.5 max-sm:top-1.5 max-sm:gap-0.5 max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[9px]"
       >
         <StarIcon />
         Verified
