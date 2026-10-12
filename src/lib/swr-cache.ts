@@ -30,6 +30,10 @@
 // copy's cache while the page keeps serving the other's, stale. The Prisma
 // client is shared through globalThis for the same reason.
 
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 type Entry = { value: unknown; fetchedAt: number };
 type Store = {
   entries: Map<string, Entry>;
@@ -48,10 +52,69 @@ function clearStore(store: Store): void {
   store.inFlight.clear();
 }
 
+// ---------------------------------------------------------------------------
+// Optional on-disk copy (`persist: true`).
+//
+// The host stops the Node process after a quiet spell and starts a new one on
+// the next visit, which used to begin with every cache empty — so that visitor
+// waited for a full chain of database queries, often against a database that
+// had also gone to sleep (5+ seconds measured on the live site). A persisted
+// cache is written to disk shortly after it changes and read back when the
+// new process starts, so the first visitor is served the last known data
+// immediately while a fresh copy loads in the background (the normal
+// stale-while-revalidate path).
+//
+// Correctness after writes: every invalidation also updates a shared
+// "invalidated at" stamp file, and entries fetched before the latest stamp are
+// never loaded from disk — even if another server process wrote them out
+// later — so a restart can never bring back data from before a write.
+// Everything here is best effort: any disk error just means no persistence.
+const PERSIST_DIR = process.env.SWR_CACHE_DIR || path.join(os.tmpdir(), "car-marketplace-swr-cache");
+const STAMP_FILE = path.join(PERSIST_DIR, "invalidated-at");
+const PERSIST_DEBOUNCE_MS = 2_000;
+
+function persistFile(name: string): string {
+  return path.join(PERSIST_DIR, `${name.replace(/[^a-z0-9-]/gi, "_")}.json`);
+}
+
+function readInvalidationStamp(): number {
+  try {
+    return Number(fs.readFileSync(STAMP_FILE, "utf8")) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeInvalidationStamp(): void {
+  fs.promises
+    .mkdir(PERSIST_DIR, { recursive: true, mode: 0o700 })
+    .then(() => fs.promises.writeFile(STAMP_FILE, String(Date.now()), { mode: 0o600 }))
+    .catch(() => undefined);
+}
+
+// Dates don't survive JSON on their own; they're tagged on the way out and
+// rebuilt on the way in. (Prisma Decimals become strings, which every caller
+// already reads through Number().)
+function serialize(entries: [string, Entry][]): string {
+  return JSON.stringify(entries, function (this: Record<string, unknown>, key, value) {
+    const raw = this[key];
+    return raw instanceof Date ? { __date: raw.toISOString() } : value;
+  });
+}
+
+function deserialize(text: string): [string, Entry][] {
+  return JSON.parse(text, (_key, value) =>
+    value && typeof value === "object" && typeof value.__date === "string" && Object.keys(value).length === 1
+      ? new Date(value.__date)
+      : value
+  );
+}
+
 /** Drops every entry in every cache, and discards any load already in
  * flight so its (possibly pre-write) result can't be stored afterwards. */
 export function invalidateAllSwrCaches(): void {
   for (const store of stores.values()) clearStore(store);
+  writeInvalidationStamp();
 }
 
 export class SwrCache {
@@ -65,18 +128,53 @@ export class SwrCache {
       /** Oldest entries are evicted beyond this, so a flood of unique keys
        * (e.g. arbitrary filter combinations) can't grow memory unbounded. */
       maxEntries: number;
+      /** Keep a copy on disk that survives a server restart (see above). */
+      persist?: boolean;
     }
   ) {
     let store = stores.get(options.name);
     if (!store) {
       store = { entries: new Map(), inFlight: new Map(), generation: 0 };
       stores.set(options.name, store);
+      if (options.persist) this.restoreFromDisk(store);
     }
     this.store = store;
   }
 
   clear(): void {
     clearStore(this.store);
+    writeInvalidationStamp();
+  }
+
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private restoreFromDisk(store: Store): void {
+    try {
+      const stamp = readInvalidationStamp();
+      const now = Date.now();
+      for (const [key, entry] of deserialize(fs.readFileSync(persistFile(this.options.name), "utf8"))) {
+        if (entry.fetchedAt > stamp && now - entry.fetchedAt < this.options.maxStaleMs) store.entries.set(key, entry);
+      }
+    } catch {
+      // No file yet, or unreadable — start empty as before.
+    }
+  }
+
+  private schedulePersist(): void {
+    if (!this.options.persist || this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      const stamp = readInvalidationStamp();
+      const entries = [...this.store.entries].filter(([, entry]) => entry.fetchedAt > stamp);
+      const file = persistFile(this.options.name);
+      const tmp = `${file}.${process.pid}.tmp`;
+      fs.promises
+        .mkdir(PERSIST_DIR, { recursive: true, mode: 0o700 })
+        .then(() => fs.promises.writeFile(tmp, serialize(entries), { mode: 0o600 }))
+        .then(() => fs.promises.rename(tmp, file))
+        .catch((error) => console.error(`[cache:${this.options.name}] could not save to disk:`, error));
+    }, PERSIST_DEBOUNCE_MS);
+    this.persistTimer.unref?.();
   }
 
   private load<T>(key: string, loader: () => Promise<T>): Promise<T> {
@@ -108,6 +206,7 @@ export class SwrCache {
       if (oldest === undefined) break;
       entries.delete(oldest);
     }
+    this.schedulePersist();
   }
 
   /**

@@ -29,6 +29,17 @@ import {
 import { notify } from "@/server/services/notification-service";
 import { checkRateLimit } from "@/server/services/rate-limit";
 import { SwrCache, invalidateAllSwrCaches } from "@/lib/swr-cache";
+import { pregenerateVariants } from "@/lib/upload-variant-files";
+
+// How long a cached public value may still be shown (while a fresh copy loads
+// in the background) before a visitor has to wait for the database instead.
+// This used to be 10-30 minutes; on a site with gaps between visits longer
+// than that, most visitors ended up waiting for the database (often asleep).
+// Long is safe here because every write that changes public data clears these
+// caches immediately (see src/lib/prisma.ts) — including the hourly expiry
+// sweep — so this window only bounds how out-of-date a value can be shown to
+// ONE visitor before the background refresh replaces it.
+const STALE_SERVE_MS = 24 * 60 * 60_000;
 
 // Whether SOLD listings stay visible on the public marketplace. Reserved as
 // a constant (rather than hardcoding the condition inline at every call
@@ -317,7 +328,8 @@ export const getPublicListingBySlug = cache(async (slug: string) => {
 const listingBySlugCache = new SwrCache({
   name: "listing-by-slug",
   freshMs: 30_000,
-  maxStaleMs: 10 * 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  persist: true,
   maxEntries: 300,
 });
 
@@ -441,7 +453,8 @@ type RelatedListingSource = {
 const relatedListingsCache = new SwrCache({
   name: "related-listings",
   freshMs: 60_000,
-  maxStaleMs: 10 * 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  persist: true,
   maxEntries: 300,
 });
 
@@ -613,12 +626,24 @@ type PublicListingFilters = Partial<ListingSearchParams> & { onlyFeatured?: bool
 const publicListingsCache = new SwrCache({
   name: "public-listings",
   freshMs: 30_000,
-  maxStaleMs: 10 * 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  persist: true,
   maxEntries: 200,
 });
 
+// Free-text searches get their own small, short-lived cache: the space of
+// search strings is unbounded, so they mustn't push the shared listing pages
+// out of the main cache above, but a repeated search (pagination, back
+// button, a popular term) no longer goes to the database every time.
+const searchResultsCache = new SwrCache({
+  name: "search-results",
+  freshMs: 30_000,
+  maxStaleMs: 10 * 60_000,
+  maxEntries: 100,
+});
+
 export async function getPublicListings(filters: PublicListingFilters = {}) {
-  if (filters.q) return loadPublicListings(filters);
+  if (filters.q) return searchResultsCache.get(JSON.stringify(filters), () => loadPublicListings(filters));
   return publicListingsCache.get(JSON.stringify(filters), async () => {
     const result = await loadPublicListings(filters);
     // Only for the unfiltered first page (the homepage and the default /cars
@@ -741,7 +766,8 @@ export async function getMakeModelIndex(): Promise<{ make: string; models: strin
 const makeModelIndexCache = new SwrCache({
   name: "make-model-index",
   freshMs: 60_000,
-  maxStaleMs: 30 * 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  persist: true,
   maxEntries: 1,
 });
 
@@ -770,6 +796,21 @@ async function loadMakeModelIndex(): Promise<{ make: string; models: string[] }[
  * thin, listing-free pages are deliberately never created). Same bounded-
  * by-distinct-values shape as getMakeModelIndex, not by listing count. */
 export async function getDistinctLocations(): Promise<string[]> {
+  return distinctLocationsCache.get("all", loadDistinctLocations);
+}
+
+// The /cars-for-sale/[location] pages check this twice per view (metadata and
+// page); it was the one public lookup with no cache, which made those pages
+// ~3 s on the live site.
+const distinctLocationsCache = new SwrCache({
+  name: "distinct-locations",
+  freshMs: 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  maxEntries: 1,
+  persist: true,
+});
+
+async function loadDistinctLocations(): Promise<string[]> {
   const rows = await prisma.carListing.findMany({
     where: { status: { in: publicListingStatuses() }, location: { not: null } },
     select: { location: true },
@@ -805,7 +846,8 @@ type CategoryCount = { value: VehicleCategory; label: string; count: number };
 const categoryCountsCache = new SwrCache({
   name: "category-counts",
   freshMs: 60_000,
-  maxStaleMs: 30 * 60_000,
+  maxStaleMs: STALE_SERVE_MS,
+  persist: true,
   maxEntries: 1,
 });
 
@@ -968,6 +1010,9 @@ export async function addListingImage(listingId: string, file: File) {
   }
 
   const { imageUrl, storageKey } = await saveListingImage(listing.id, file);
+  // Make the card/thumbnail sizes now, in the background, so the first
+  // visitor to see this photo doesn't wait for a resize.
+  void pregenerateVariants(imageUrl);
 
   return prisma.carImage.create({
     data: {
@@ -1009,6 +1054,10 @@ export async function addListingImages(listingId: string, files: File[]) {
   }
 
   const saved = await saveListingImages(listing.id, files);
+  // Card/thumbnail sizes made now, in the background (see addListingImage).
+  void (async () => {
+    for (const image of saved) await pregenerateVariants(image.imageUrl);
+  })();
 
   try {
     await prisma.carImage.createMany({

@@ -31,5 +31,30 @@ export async function register() {
         console.error("[startup] cache warm-up failed:", error);
       }
     })();
+
+    // Resized photo copies (see lib/upload-variant-files.ts) live on disk and
+    // survive restarts, but photos uploaded before they existed — or whose
+    // copies were cleared — would make their first visitor wait for a resize.
+    // Make the common sizes for every public listing photo once, slowly, in
+    // the background (it queues behind any visitor's request). Photos that
+    // already have them are skipped with a quick file check.
+    void (async () => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 15_000));
+        const [{ prisma }, { pregenerateVariants }] = await Promise.all([
+          import("@/lib/prisma"),
+          import("@/lib/upload-variant-files"),
+        ]);
+        const images = await prisma.carImage.findMany({
+          where: { listing: { status: { in: ["ACTIVE", "SOLD"] } } },
+          select: { imageUrl: true },
+          orderBy: [{ isPrimary: "desc" }, { displayOrder: "asc" }],
+          take: 2000,
+        });
+        for (const { imageUrl } of images) await pregenerateVariants(imageUrl);
+      } catch (error) {
+        console.error("[startup] photo size warm-up failed:", error);
+      }
+    })();
   }
 }

@@ -14,8 +14,28 @@ import { uploadVariantUrl } from "@/lib/upload-variants";
 // untouched.
 const uploadLoader: ImageLoader = ({ src, width }) => uploadVariantUrl(src, width);
 
-export function UploadedImage(props: Omit<ImageProps, "loader" | "unoptimized">) {
+// One loader per cap, created once — a new function per render would make
+// next/image treat every render as a new image.
+const cappedLoaders = new Map<number, ImageLoader>();
+function loaderFor(maxWidth: number | undefined): ImageLoader {
+  if (!maxWidth) return uploadLoader;
+  let loader = cappedLoaders.get(maxWidth);
+  if (!loader) {
+    loader = ({ src, width }) => uploadVariantUrl(src, Math.min(width, maxWidth));
+    cappedLoaders.set(maxWidth, loader);
+  }
+  return loader;
+}
+
+type UploadedImageProps = Omit<ImageProps, "loader" | "unoptimized"> & {
+  /** Never fetch a copy wider than this many pixels. Phones with 3× screens
+   * otherwise ask for 1080px+ photos for a card ~400px wide; capping at 640
+   * looks the same at that size and is roughly half the bytes. */
+  maxWidth?: number;
+};
+
+export function UploadedImage({ maxWidth, ...props }: UploadedImageProps) {
   // alt is required by ImageProps and forwarded via the spread.
   // eslint-disable-next-line jsx-a11y/alt-text
-  return <Image {...props} loader={uploadLoader} />;
+  return <Image {...props} loader={loaderFor(maxWidth)} />;
 }

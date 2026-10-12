@@ -161,6 +161,7 @@ export function CarImageGallery({
                     fill
                     className={isSold ? "object-cover grayscale-[15%]" : "object-cover"}
                     sizes="(max-width: 1024px) 100vw, 800px"
+                    maxWidth={1080}
                     priority={i === 0}
                     onError={() => onImageError(img.imageUrl)}
                   />

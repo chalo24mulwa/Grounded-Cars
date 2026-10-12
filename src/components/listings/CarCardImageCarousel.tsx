@@ -140,6 +140,7 @@ export function CarCardImageCarousel({
                 alt={img.altText ?? `${title} — photo ${i + 1}`}
                 fill
                 priority={priority && i === 0}
+                maxWidth={640}
                 className={clsx("object-cover", isSold && "grayscale-[15%]")}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                 onError={() => setFailedUrls((prev) => new Set(prev).add(img.imageUrl))}

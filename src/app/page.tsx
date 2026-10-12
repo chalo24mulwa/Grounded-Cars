@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { preload } from "react-dom";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getPublicListings, getMakeModelIndex } from "@/server/services/listing-service";
@@ -55,7 +55,14 @@ const HOME_LISTING_COUNT = 8;
 // then a preview of live listings, both pointing into the same /cars page
 // the header nav already exposes — this isn't a second source of truth for
 // site structure, just a front door onto it.
+const HERO_SRC = "/images/home/hero-1080.webp";
+const HERO_SRCSET =
+  "/images/home/hero-640.webp 640w, /images/home/hero-1080.webp 1080w, /images/home/hero-1600.webp 1600w";
+
 export default async function HomePage() {
+  // Starts the hero download from the <head>, before the browser reaches the
+  // <img> further down the HTML.
+  preload(HERO_SRC, { as: "image", imageSrcSet: HERO_SRCSET, imageSizes: "100vw", fetchPriority: "high" });
   const session = await auth();
   const [{ listings, totalCount }, makeModelIndex, favoriteIds] = await Promise.all([
     getPublicListings({ sort: "featured", page: 1 }),
@@ -100,13 +107,20 @@ export default async function HomePage() {
 
       <section className="relative w-full overflow-hidden">
         <div className="absolute inset-0">
-          <Image
-            src="/images/home/hero.jpg"
-            alt="A car ready for sale outside a dealership showroom at dusk"
-            fill
-            priority
-            className="object-cover"
+          {/* Pre-sized WebP files (made from hero.jpg) served straight from
+              public/ by the web server — the image optimizer is skipped for
+              the page's largest element, so it no longer waits on the Node
+              process or on the optimizer's cache, which is wiped on every
+              deploy. Preloaded with high priority above. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={HERO_SRC}
+            srcSet={HERO_SRCSET}
             sizes="100vw"
+            alt="A car ready for sale outside a dealership showroom at dusk"
+            fetchPriority="high"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-transparent" />
