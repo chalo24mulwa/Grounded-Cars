@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import { CsrProgressBar } from "@/components/csr/CsrProgressBar";
 
 type CardInitiative = {
@@ -18,11 +18,10 @@ export function CsrInitiativeCard({ initiative }: { initiative: CardInitiative }
     <div className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
       <Link href={`/csr/${initiative.slug}`} className="relative aspect-[16/10] w-full bg-slate-100">
         {initiative.coverImageUrl ? (
-          <Image
+          <UploadedImage
             src={initiative.coverImageUrl}
             alt={initiative.title}
             fill
-            unoptimized
             className="object-cover transition group-hover:scale-[1.02]"
             sizes="(max-width: 768px) 100vw, 33vw"
           />

@@ -108,12 +108,13 @@ export default async function BestDealsPage({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {listings.map((listing) => (
+              {listings.map((listing, i) => (
                 <CarCard
                   key={listing.id}
                   listing={listing}
                   isFavorited={favoriteIds.has(listing.id)}
                   isAuthenticated={Boolean(session?.user)}
+                  priority={i < 2}
                 />
               ))}
             </div>

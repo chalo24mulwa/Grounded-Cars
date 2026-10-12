@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
 import type { CarListing, CarImage } from "@prisma/client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -37,11 +37,10 @@ export function SellerListingCard({ listing }: { listing: Listing }) {
     <div className="flex gap-4 rounded-xl border border-slate-200 bg-white p-4">
       <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg bg-slate-100">
         {primaryImage ? (
-          <Image
+          <UploadedImage
             src={primaryImage.imageUrl}
             alt={primaryImage.altText ?? listing.title}
             fill
-            unoptimized
             className="object-cover"
             sizes="128px"
           />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 
 type GalleryImage = { id?: string; imageUrl: string; altText: string | null };
 
@@ -121,6 +121,13 @@ export function CarImageGallery({
   // carousel's transform below.
   const safeIndex = Math.min(index, count - 1);
   const currentImage = visibleImages[safeIndex] ?? visibleImages[0]!;
+  // Only the photo on screen and its immediate neighbours (wrapping) are
+  // mounted in the sliding track — the rest of a 10-photo gallery isn't
+  // downloaded until the buyer actually gets near it.
+  const isNearCurrent = (i: number) => {
+    const distance = Math.abs(i - safeIndex);
+    return distance <= 1 || distance === count - 1;
+  };
 
   return (
     <div>
@@ -147,16 +154,17 @@ export function CarImageGallery({
                 aria-label={`View photo ${i + 1} of ${count} full-screen`}
                 className="relative h-full w-full shrink-0 cursor-zoom-in"
               >
-                <Image
-                  src={img.imageUrl}
-                  alt={img.altText ?? `${title} — photo ${i + 1}`}
-                  fill
-                  unoptimized
-                  className={isSold ? "object-cover grayscale-[15%]" : "object-cover"}
-                  sizes="(max-width: 768px) 100vw, 800px"
-                  priority={i === 0}
-                  onError={() => onImageError(img.imageUrl)}
-                />
+                {isNearCurrent(i) && (
+                  <UploadedImage
+                    src={img.imageUrl}
+                    alt={img.altText ?? `${title} — photo ${i + 1}`}
+                    fill
+                    className={isSold ? "object-cover grayscale-[15%]" : "object-cover"}
+                    sizes="(max-width: 1024px) 100vw, 800px"
+                    priority={i === 0}
+                    onError={() => onImageError(img.imageUrl)}
+                  />
+                )}
               </button>
             ))}
           </div>
@@ -203,11 +211,10 @@ export function CarImageGallery({
                 (i === safeIndex ? "border-brand" : "border-transparent hover:border-slate-300")
               }
             >
-              <Image
+              <UploadedImage
                 src={img.imageUrl}
                 alt={img.altText ?? `${title} — thumbnail ${i + 1}`}
                 fill
-                unoptimized
                 className="object-cover"
                 sizes="112px"
                 loading="lazy"
@@ -241,11 +248,10 @@ export function CarImageGallery({
           <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
             <div className="absolute inset-0 flex items-center justify-center p-4 pb-2 sm:p-10">
               <div className="relative h-full w-full">
-                <Image
+                <UploadedImage
                   src={currentImage.imageUrl}
                   alt={currentImage.altText ?? `${title} — photo ${safeIndex + 1}`}
                   fill
-                  unoptimized
                   className="object-contain"
                   sizes="100vw"
                   priority
@@ -302,12 +308,11 @@ export function CarImageGallery({
                     (i === safeIndex ? "border-white" : "border-transparent opacity-60 hover:opacity-100")
                   }
                 >
-                  <Image
+                  <UploadedImage
                     src={img.imageUrl}
                     alt={img.altText ?? `${title} — thumbnail ${i + 1}`}
                     fill
-                    unoptimized
-                    className="object-cover"
+                      className="object-cover"
                     sizes="80px"
                     loading="lazy"
                     onError={() => onImageError(img.imageUrl)}

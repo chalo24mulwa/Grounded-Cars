@@ -15,13 +15,13 @@ export default async function CsrPage() {
   return (
     <div>
       {/* Hero banner — the image itself already carries the headline, intro
-          copy, and CTA baked in (see public/images/csr/hero.png), so this is
+          copy, and CTA baked in (see public/images/csr/hero.jpg), so this is
           rendered plain (no overlay) at its native aspect ratio to avoid
           ever cropping that baked-in text. The page's own heading/intro
           copy follows below the image, not on top of it. */}
       <section className="w-full bg-slate-900">
         <Image
-          src="/images/csr/hero.png"
+          src="/images/csr/hero.jpg"
           alt="Together we can make a difference — Car Marketplace CSR: supporting vulnerable groups, feeding street children, community outreach."
           width={1717}
           height={916}

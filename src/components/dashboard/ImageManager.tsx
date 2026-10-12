@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import type { CarImage } from "@prisma/client";
@@ -116,11 +116,10 @@ export function ImageManager({ listingId, images }: { listingId: string; images:
           {sorted.map((image, index) => (
             <div key={image.id} className="overflow-hidden rounded-lg border border-slate-200">
               <div className="relative aspect-square bg-slate-100">
-                <Image
+                <UploadedImage
                   src={image.imageUrl}
                   alt={image.altText ?? "Car photo"}
                   fill
-                  unoptimized
                   className="object-cover"
                   sizes="200px"
                 />
@@ -178,11 +177,10 @@ export function ImageManager({ listingId, images }: { listingId: string; images:
           {pending.map((p) => (
             <div key={p.key} className="overflow-hidden rounded-lg border border-slate-200">
               <div className="relative aspect-square bg-slate-100">
-                <Image
+                <UploadedImage
                   src={p.previewUrl}
                   alt="Uploading"
                   fill
-                  unoptimized
                   className={clsx("object-cover", p.status === "uploading" && "opacity-60")}
                   sizes="200px"
                 />

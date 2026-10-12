@@ -10,6 +10,20 @@ const nextConfig = {
     // whenever the seed script had been run. Remove once Phase 3 wires up
     // real object storage and the seed script points at it instead.
     remotePatterns: [{ protocol: "https", hostname: "placehold.co" }],
+    // Performance: fewer, phone-oriented widths. Each width is a separate
+    // file the optimizer has to produce (on a small shared CPU) and cache;
+    // the defaults went up to 3840px, which nothing on this site needs — the
+    // largest source image is ~1700px wide. Must stay covered by
+    // VARIANT_WIDTHS in src/lib/upload-variants.ts, which the uploaded-photo
+    // loader uses with these same lists.
+    deviceSizes: [640, 828, 1080, 1280, 1920],
+    imageSizes: [96, 128, 256, 384],
+    formats: ["image/webp"],
+    // Optimized copies of public/ images were only kept for 60 seconds
+    // (public/ files are served without a long cache lifetime), so the
+    // optimizer redid the same resize again and again. 30 days; to change one
+    // of those images, give the new file a new name.
+    minimumCacheTTL: 60 * 60 * 24 * 30,
   },
   eslint: {
     ignoreDuringBuilds: false,
@@ -62,6 +76,14 @@ const nextConfig = {
   // src/lib/storage.ts for the upload-time validation this backs up).
   async headers() {
     return [
+      // Brand assets and page artwork in public/ — Next serves these with no
+      // browser cache lifetime at all, so every page view re-checked them.
+      // A day of caching plus a week of background revalidation; rename a
+      // file when replacing it if the change must show up immediately.
+      {
+        source: "/:dir(brand|images)/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
       {
         source: "/:path*",
         headers: [

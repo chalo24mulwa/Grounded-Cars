@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ActionButton } from "@/components/dashboard/ActionButton";
@@ -59,11 +59,10 @@ export function PendingListingRow({
     <div className="flex gap-4 rounded-xl border border-slate-200 bg-white p-4">
       <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg bg-slate-100">
         {cover ? (
-          <Image
+          <UploadedImage
             src={cover.imageUrl}
             alt={cover.altText ?? listing.title}
             fill
-            unoptimized
             className="object-cover"
             sizes="112px"
           />

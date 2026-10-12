@@ -101,7 +101,7 @@ export default async function HomePage() {
       <section className="relative w-full overflow-hidden">
         <div className="absolute inset-0">
           <Image
-            src="/images/home/hero.png"
+            src="/images/home/hero.jpg"
             alt="A car ready for sale outside a dealership showroom at dusk"
             fill
             priority

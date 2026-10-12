@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
 
 export function InsurancePolicyCard({
@@ -17,11 +17,10 @@ export function InsurancePolicyCard({
     <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
       <div className="relative aspect-[16/10] w-full bg-slate-100">
         {policy.imageUrl ? (
-          <Image
+          <UploadedImage
             src={policy.imageUrl}
             alt={policy.title}
             fill
-            unoptimized
             className="object-cover"
             sizes="(max-width: 768px) 100vw, 33vw"
           />

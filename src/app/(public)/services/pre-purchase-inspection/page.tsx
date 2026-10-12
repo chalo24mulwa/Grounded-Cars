@@ -23,7 +23,7 @@ export default async function PrePurchaseInspectionPage() {
       title="Pre-Purchase Inspection"
       serviceName="Pre-Purchase Inspection"
       heroImage={{
-        src: "/images/services/pre-purchase-inspection-hero.png",
+        src: "/images/services/pre-purchase-inspection-hero.jpg",
         alt: "Car Marketplace pre-purchase car inspection — only KSH 1,000, checking engine performance, transmission, brakes, electrical, body and interior condition, fluids and leaks, and a road test",
         width: 1024,
         height: 1536,

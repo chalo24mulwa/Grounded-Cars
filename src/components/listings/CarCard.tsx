@@ -32,9 +32,12 @@ type CarCardProps = {
   // not per card) — see getMyFavoriteListingIds() in favorite-service.ts.
   isFavorited?: boolean;
   isAuthenticated?: boolean;
+  /** First visible row of a grid: fetch the cover photo right away (it's
+   * usually the page's largest element) instead of lazily. */
+  priority?: boolean;
 };
 
-export function CarCard({ listing, isFavorited = false, isAuthenticated = false }: CarCardProps) {
+export function CarCard({ listing, isFavorited = false, isAuthenticated = false, priority = false }: CarCardProps) {
   const isSold = listing.status === "SOLD" as ListingStatus;
 
   return (
@@ -45,7 +48,7 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false 
         isSold && "opacity-90"
       )}
     >
-      <CarCardImageCarousel images={listing.images} title={listing.title} isSold={isSold}>
+      <CarCardImageCarousel images={listing.images} title={listing.title} isSold={isSold} priority={priority}>
         {isSold && <SoldRibbon />}
         {!isSold && listing.isFeatured && <FeaturedBadge />}
         <ImportStatusBadge status={listing.importStatus} />

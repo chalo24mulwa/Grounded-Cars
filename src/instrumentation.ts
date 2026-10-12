@@ -13,5 +13,23 @@ export async function register() {
 
     const { startExpiryScheduler } = await import("@/server/services/expiry-service");
     startExpiryScheduler();
+
+    // Performance: a freshly started server has empty in-memory caches (see
+    // lib/swr-cache.ts) and, after a quiet spell, a suspended Neon database
+    // that takes a few seconds to wake. Start loading the data every public
+    // page needs right away, in the background, so the first visitor after a
+    // restart or deploy doesn't pay for both. Not awaited — never delays
+    // startup — and failures are only logged; the first request then simply
+    // loads the data the normal way.
+    void (async () => {
+      try {
+        const { getCategoryCounts, getMakeModelIndex, getPublicListings } = await import(
+          "@/server/services/listing-service"
+        );
+        await Promise.all([getCategoryCounts(), getMakeModelIndex(), getPublicListings({ sort: "featured", page: 1 })]);
+      } catch (error) {
+        console.error("[startup] cache warm-up failed:", error);
+      }
+    })();
   }
 }

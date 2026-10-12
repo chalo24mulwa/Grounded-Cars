@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import clsx from "clsx";
 
 type CardImage = { imageUrl: string; altText: string | null };
@@ -27,14 +27,22 @@ export function CarCardImageCarousel({
   images,
   title,
   isSold,
+  priority = false,
   children,
 }: {
   images: CardImage[];
   title: string;
   isSold: boolean;
+  /** Load the first photo immediately (cards in the first visible row). */
+  priority?: boolean;
   children?: React.ReactNode;
 }) {
   const [index, setIndex] = useState(0);
+  // Only the first photo is downloaded with the page. The others are
+  // fetched once the visitor actually starts flipping through this card —
+  // a grid of 24 cards used to download every card's full photo set up
+  // front, almost none of which anyone ever looks at.
+  const [hasInteracted, setHasInteracted] = useState(false);
   // A CarImage row existing in the database is no guarantee the file it
   // points at still exists on disk (e.g. an upload from before the
   // persistent-storage fix, since deleted along with an old deploy) — an
@@ -51,6 +59,7 @@ export function CarCardImageCarousel({
   const touchDeltaX = useRef(0);
 
   function step(delta: number) {
+    setHasInteracted(true);
     setIndex((i) => ((i + delta) % count + count) % count);
   }
 
@@ -63,6 +72,7 @@ export function CarCardImageCarousel({
   function handleDotClick(i: number, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
+    setHasInteracted(true);
     setIndex(i);
   }
 
@@ -71,6 +81,7 @@ export function CarCardImageCarousel({
     if (!touch) return;
     touchStartX.current = touch.clientX;
     touchDeltaX.current = 0;
+    setHasInteracted(true);
   }
   function handleTouchMove(e: React.TouchEvent) {
     const touch = e.touches[0];
@@ -119,15 +130,21 @@ export function CarCardImageCarousel({
       >
         {visibleImages.map((img, i) => (
           <div key={img.imageUrl} className="relative h-full w-full shrink-0">
-            <Image
-              src={img.imageUrl}
-              alt={img.altText ?? `${title} — photo ${i + 1}`}
-              fill
-              unoptimized
-              className={clsx("object-cover", isSold && "grayscale-[15%]")}
-              sizes="(max-width: 768px) 100vw, 33vw"
-              onError={() => setFailedUrls((prev) => new Set(prev).add(img.imageUrl))}
-            />
+            {/* Slides more than one step away from the visible one stay empty
+                until needed; neighbours are mounted once the visitor
+                interacts, so the next swipe already has its photo. */}
+            {(i === safeIndex ||
+              (hasInteracted && (Math.abs(i - safeIndex) <= 1 || Math.abs(i - safeIndex) === count - 1))) && (
+              <UploadedImage
+                src={img.imageUrl}
+                alt={img.altText ?? `${title} — photo ${i + 1}`}
+                fill
+                priority={priority && i === 0}
+                className={clsx("object-cover", isSold && "grayscale-[15%]")}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                onError={() => setFailedUrls((prev) => new Set(prev).add(img.imageUrl))}
+              />
+            )}
           </div>
         ))}
       </div>

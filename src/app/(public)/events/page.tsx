@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import { getPublishedEvents } from "@/server/services/event-service";
 
 export const metadata = {
@@ -33,11 +33,10 @@ export default async function EventsPage() {
             >
               <div className="relative aspect-[16/10] w-full bg-slate-100">
                 {event.imageUrl ? (
-                  <Image
+                  <UploadedImage
                     src={event.imageUrl}
                     alt={event.title}
                     fill
-                    unoptimized
                     className="object-cover transition group-hover:scale-[1.02]"
                     sizes="(max-width: 768px) 100vw, 33vw"
                   />

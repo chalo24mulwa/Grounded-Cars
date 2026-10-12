@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import type { CsrInitiativeImage } from "@prisma/client";
@@ -89,11 +89,10 @@ export function CsrGalleryManager({
           {sorted.map((image) => (
             <div key={image.id} className="overflow-hidden rounded-lg border border-slate-200">
               <div className="relative aspect-square bg-slate-100">
-                <Image
+                <UploadedImage
                   src={image.imageUrl}
                   alt={image.altText ?? "Initiative photo"}
                   fill
-                  unoptimized
                   className="object-cover"
                   sizes="200px"
                 />
@@ -114,11 +113,10 @@ export function CsrGalleryManager({
           {pending.map((p) => (
             <div key={p.key} className="overflow-hidden rounded-lg border border-slate-200">
               <div className="relative aspect-square bg-slate-100">
-                <Image
+                <UploadedImage
                   src={p.previewUrl}
                   alt="Uploading"
                   fill
-                  unoptimized
                   className={clsx("object-cover", p.status === "uploading" && "opacity-60")}
                   sizes="200px"
                 />

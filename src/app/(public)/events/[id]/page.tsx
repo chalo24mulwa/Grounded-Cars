@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -42,7 +42,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
       <div className="mt-4 relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
         {event.imageUrl ? (
-          <Image src={event.imageUrl} alt={event.title} fill unoptimized className="object-cover" sizes="768px" priority />
+          <UploadedImage src={event.imageUrl} alt={event.title} fill className="object-cover" sizes="768px" priority />
         ) : (
           <div className="flex h-full items-center justify-center text-slate-400">Car Marketplace</div>
         )}

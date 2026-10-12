@@ -4,6 +4,7 @@ import { writeFile, mkdir, unlink, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { WATERMARK_PATH, WATERMARK_BOUNDS } from "@/lib/watermark-path";
+import { VARIANT_WIDTHS } from "@/lib/upload-variants";
 
 // ----------------------------------------------------------------------------
 // Local-disk image storage for Phase 3. Deliberately isolated behind this
@@ -51,6 +52,22 @@ export const UPLOAD_ROOT = process.env.UPLOAD_STORAGE_DIR
   ? stripWrappingQuotes(process.env.UPLOAD_STORAGE_DIR)
   : path.join(process.cwd(), "public", "uploads");
 const UPLOAD_DIR = path.join(UPLOAD_ROOT, "listings");
+// Resized copies made on demand by app/uploads/[...path]/route.ts — laid out
+// as .variants/<width>/listings/<listingId>/<key>.<webp|jpeg>.
+const VARIANTS_DIR = path.join(UPLOAD_ROOT, ".variants");
+
+/** Best-effort removal of the resized copies of one listing photo. They
+ * already stop being served once the original is gone; this just frees the
+ * disk space. Never throws. */
+async function deleteListingImageVariants(storageKey: string): Promise<void> {
+  await Promise.all(
+    VARIANT_WIDTHS.flatMap((width) =>
+      ["webp", "jpeg"].map((format) =>
+        unlink(path.join(VARIANTS_DIR, String(width), "listings", `${storageKey}.${format}`)).catch(() => undefined)
+      )
+    )
+  );
+}
 const PUBLIC_BASE_PATH = "/uploads/listings";
 
 const EVENTS_UPLOAD_DIR = path.join(UPLOAD_ROOT, "events");
@@ -280,6 +297,7 @@ export async function saveListingImages(
 }
 
 export async function deleteListingImage(storageKey: string): Promise<void> {
+  void deleteListingImageVariants(storageKey);
   try {
     await unlink(path.join(UPLOAD_DIR, storageKey));
   } catch (error) {
@@ -317,6 +335,14 @@ export async function deleteListingFiles(listingId: string): Promise<number> {
   }
 
   await rm(dir, { recursive: true, force: true });
+  // Resized copies of this listing's photos (see VARIANTS_DIR) — best effort.
+  await Promise.all(
+    VARIANT_WIDTHS.map((width) =>
+      rm(path.join(VARIANTS_DIR, String(width), "listings", listingId), { recursive: true, force: true }).catch(
+        () => undefined
+      )
+    )
+  );
   return fileCount;
 }
 
