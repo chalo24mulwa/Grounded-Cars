@@ -643,6 +643,21 @@ const searchResultsCache = new SwrCache({
 });
 
 export async function getPublicListings(filters: PublicListingFilters = {}) {
+  // Fast path: answer from the in-memory catalog of every public listing (see
+  // below) — any filter, sort, search or page costs no database round trip.
+  const catalog = await getPublicCatalog().catch((error) => {
+    console.error("Public listing catalog unavailable, querying the database instead:", error);
+    return null;
+  });
+  if (catalog && !catalog.tooLarge) {
+    const result = queryCatalog(catalog.listings, filters);
+    if (isDefaultFirstPage(filters) && lastPrimedCatalogAt !== catalog.loadedAt) {
+      lastPrimedCatalogAt = catalog.loadedAt;
+      void primeListingDetails(result.listings.map((listing) => listing.slug));
+    }
+    return result;
+  }
+
   if (filters.q) return searchResultsCache.get(JSON.stringify(filters), () => loadPublicListings(filters));
   return publicListingsCache.get(JSON.stringify(filters), async () => {
     const result = await loadPublicListings(filters);
@@ -650,12 +665,156 @@ export async function getPublicListings(filters: PublicListingFilters = {}) {
     // view): those are what nearly every visit starts from, and it keeps
     // arbitrary filter combinations from each triggering a batch of
     // background loads.
-    const { sort: _sort, page, ...otherFilters } = filters;
-    if (Object.keys(otherFilters).length === 0 && (page ?? 1) === 1) {
+    if (isDefaultFirstPage(filters)) {
       void primeListingDetails(result.listings.map((listing) => listing.slug));
     }
     return result;
   });
+}
+
+function isDefaultFirstPage(filters: PublicListingFilters): boolean {
+  const { sort: _sort, page, ...otherFilters } = filters;
+  return Object.keys(otherFilters).length === 0 && (page ?? 1) === 1;
+}
+
+// ----------------------------------------------------------------------------
+// In-memory public catalog.
+//
+// Measured on the live site: every listing page that wasn't already cached
+// (a new filter, sort or search) took 1.5-2 s, because the database is far
+// from the web server and a listing query is three dependent round trips
+// (featured ids + count → listings → their photos). A marketplace's public
+// catalog is small — hundreds to low thousands of cars — so instead the whole
+// public catalog (card fields + up to 6 photos each) is loaded in one go,
+// cached like everything else (cleared on every write, refreshed in the
+// background, kept on disk across restarts), and every filter/sort/page is
+// answered from memory with exactly the same rules as buildListingWhere() and
+// sortToOrderBy(). Above CATALOG_MAX_LISTINGS it switches itself off and the
+// database path below is used as before.
+const CATALOG_MAX_LISTINGS = 2_000;
+let lastPrimedCatalogAt = 0;
+
+async function loadPublicCatalogListings() {
+  const now = new Date();
+  const rows = await prisma.carListing.findMany({
+    where: { status: { in: publicListingStatuses() } },
+    include: {
+      images: { orderBy: CARD_IMAGE_ORDER_BY, take: CARD_IMAGE_PREVIEW_COUNT },
+      featuredSubscriptions: {
+        where: { status: "ACTIVE", expiresAt: { gt: now } },
+        select: { id: true },
+        take: 1,
+      },
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: CATALOG_MAX_LISTINGS + 1,
+  });
+  return rows.map(({ featuredSubscriptions, ...listing }) => ({
+    ...listing,
+    // Same rule as loadPublicListings(): featured only while it has an
+    // ACTIVE, unexpired subscription AND the listing itself is ACTIVE.
+    isFeatured: listing.status === "ACTIVE" && featuredSubscriptions.length > 0,
+  }));
+}
+
+type CatalogListing = Awaited<ReturnType<typeof loadPublicCatalogListings>>[number];
+type PublicCatalog = { listings: CatalogListing[]; tooLarge: boolean; loadedAt: number };
+
+const publicCatalogCache = new SwrCache({
+  name: "public-catalog",
+  freshMs: 30_000,
+  maxStaleMs: STALE_SERVE_MS,
+  maxEntries: 1,
+  persist: true,
+});
+
+function getPublicCatalog(): Promise<PublicCatalog> {
+  return publicCatalogCache.get("all", async () => {
+    const listings = await loadPublicCatalogListings();
+    const tooLarge = listings.length > CATALOG_MAX_LISTINGS;
+    return { listings: tooLarge ? [] : listings, tooLarge, loadedAt: Date.now() };
+  });
+}
+
+const lower = (value: string | null | undefined) => (value ?? "").toLowerCase();
+
+/** In-memory twin of buildListingWhere() — keep the two in step. */
+function matchesFilters(listing: CatalogListing, filters: Partial<ListingSearchParams>): boolean {
+  if (filters.q) {
+    const q = filters.q.toLowerCase();
+    const hit = [listing.title, listing.make, listing.model, listing.location].some(
+      (field) => field != null && field.toLowerCase().includes(q)
+    );
+    if (!hit) return false;
+  }
+  if (filters.make && lower(listing.make) !== filters.make.toLowerCase()) return false;
+  if (filters.model && lower(listing.model) !== filters.model.toLowerCase()) return false;
+  const price = Number(listing.price);
+  if (filters.minPrice != null && !(price >= filters.minPrice)) return false;
+  if (filters.maxPrice != null && !(price <= filters.maxPrice)) return false;
+  if (filters.minYear != null && !(listing.year >= filters.minYear)) return false;
+  if (filters.maxYear != null && !(listing.year <= filters.maxYear)) return false;
+  // SQL comparisons never match NULL, so a mileage range excludes listings
+  // with no mileage recorded — same here.
+  if (filters.minMileage != null && (listing.mileage == null || listing.mileage < filters.minMileage)) return false;
+  if (filters.maxMileage != null && (listing.mileage == null || listing.mileage > filters.maxMileage)) return false;
+  if (filters.transmission && listing.transmission !== filters.transmission) return false;
+  if (filters.fuelType && listing.fuelType !== filters.fuelType) return false;
+  if (filters.bodyType && (listing.bodyType == null || listing.bodyType.toLowerCase() !== filters.bodyType.toLowerCase()))
+    return false;
+  if (filters.location && (listing.location == null || !listing.location.toLowerCase().includes(filters.location.toLowerCase())))
+    return false;
+  if (filters.condition && listing.condition !== filters.condition) return false;
+  if (filters.importStatus && listing.importStatus !== filters.importStatus) return false;
+  if (filters.category && listing.category !== filters.category) return false;
+  return true;
+}
+
+/** In-memory twin of sortToOrderBy() (PostgreSQL puts NULLs last when
+ * sorting ascending, so a listing without mileage sorts last). */
+function compareForSort(sort: ListingSearchParams["sort"] | undefined) {
+  const byNumber = (pick: (l: CatalogListing) => number | null, dir: 1 | -1) => (a: CatalogListing, b: CatalogListing) => {
+    const x = pick(a);
+    const y = pick(b);
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (x - y) * dir;
+  };
+  switch (sort) {
+    case "oldest":
+      return byNumber((l) => l.createdAt.getTime(), 1);
+    case "price_asc":
+      return byNumber((l) => Number(l.price), 1);
+    case "price_desc":
+      return byNumber((l) => Number(l.price), -1);
+    case "year_desc":
+      return byNumber((l) => l.year, -1);
+    case "mileage_asc":
+      return byNumber((l) => l.mileage, 1);
+    case "featured":
+    case "newest":
+    default:
+      return byNumber((l) => l.createdAt.getTime(), -1);
+  }
+}
+
+/** Same result shape and featured-first pagination as loadPublicListings(). */
+function queryCatalog(all: CatalogListing[], filters: PublicListingFilters) {
+  const pageSize = Math.min(DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+  const page = Math.max(1, filters.page ?? 1);
+  const compare = compareForSort(filters.sort ?? "featured");
+
+  const matching = all.filter((listing) => matchesFilters(listing, filters));
+  const featured = matching.filter((listing) => listing.isFeatured).sort(compare);
+  const normal = filters.onlyFeatured ? [] : matching.filter((listing) => !listing.isFeatured).sort(compare);
+
+  const ordered = [...featured, ...normal];
+  const totalCount = ordered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const listings = ordered.slice((page - 1) * pageSize, page * pageSize);
+
+  return { listings, page, pageSize, totalCount, totalPages };
 }
 
 async function loadPublicListings(filters: PublicListingFilters) {
