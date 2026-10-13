@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getListingForEdit } from "@/server/services/listing-service";
 import { AuthenticationError, AuthorizationError } from "@/server/authorization/ownership";
+import { waitForNewListing } from "@/server/services/listing-fast-submit";
 
 export const metadata = { title: "Listing Submitted" };
 
@@ -16,7 +17,15 @@ export default async function ListingSubmittedPage({
   const { id } = await params;
 
   try {
-    await getListingForEdit(id);
+    try {
+      await getListingForEdit(id);
+    } catch (error) {
+      // Opened a moment after a fast Submit: the listing may still be being
+      // saved in the background. Wait for it, then check again.
+      if (!(error instanceof AuthorizationError)) throw error;
+      await waitForNewListing(id);
+      await getListingForEdit(id);
+    }
   } catch (error) {
     if (error instanceof AuthenticationError) redirect("/login");
     if (error instanceof AuthorizationError) notFound();

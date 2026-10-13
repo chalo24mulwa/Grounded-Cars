@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getListingForEdit, getLatestRejectionReason } from "@/server/services/listing-service";
 import { AuthenticationError, AuthorizationError } from "@/server/authorization/ownership";
+import { waitForNewListing } from "@/server/services/listing-fast-submit";
 import { ListingForm } from "@/components/dashboard/ListingForm";
 import { ImageManager } from "@/components/dashboard/ImageManager";
 
@@ -19,7 +20,15 @@ export default async function EditListingPage({
 
   let listing;
   try {
-    listing = await getListingForEdit(id);
+    try {
+      listing = await getListingForEdit(id);
+    } catch (error) {
+      // Just saved as a draft with the fast form: it may still be being
+      // written in the background, so wait for it before giving up.
+      if (!created || !(error instanceof AuthorizationError)) throw error;
+      await waitForNewListing(id);
+      listing = await getListingForEdit(id);
+    }
   } catch (error) {
     if (error instanceof AuthenticationError) redirect("/login");
     // Ownership failure renders as "not found," not "forbidden" — this is

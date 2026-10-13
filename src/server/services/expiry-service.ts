@@ -173,10 +173,21 @@ export async function runExpirySweep() {
   const remindersSent = await sendExpiryReminders(now);
   const autoArchivedListings = await archiveStaleSoldListings(now);
 
+  // Photos from Add New Car forms that were never submitted (see
+  // listing-fast-submit.ts). Never allowed to fail the sweep.
+  let abandonedPhotoFolders = 0;
+  try {
+    const { cleanupAbandonedPhotoUploads } = await import("@/server/services/listing-fast-submit");
+    abandonedPhotoFolders = await cleanupAbandonedPhotoUploads();
+  } catch (error) {
+    console.error("Abandoned photo cleanup failed:", error);
+  }
+
   return {
     expiredSubscriptions,
     remindersSent,
     autoArchivedListings,
+    abandonedPhotoFolders,
     ranAt: now,
   };
 }

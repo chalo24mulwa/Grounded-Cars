@@ -16,7 +16,7 @@ import {
 } from "@/server/validation/listing-schema";
 import type { ListingSearchParams } from "@/server/validation/search-schema";
 import { VEHICLE_CATEGORIES } from "@/server/validation/search-schema";
-import type { ListingStatus, Prisma, VehicleCategory } from "@prisma/client";
+import type { ListingStatus, Prisma, UserRole, VehicleCategory } from "@prisma/client";
 import { slugify } from "@/lib/slugify";
 import {
   saveListingImage,
@@ -136,6 +136,24 @@ export async function changeListingStatus(
       ? await requireListingModerationAccess(listingId)
       : await requireListingOwnership(listingId);
 
+  return applyListingStatusChange(user, listing, toStatus, note);
+}
+
+/**
+ * The part of changeListingStatus() after the access check: validates the
+ * transition, writes it with its history row, clears caches and sends the
+ * notifications. Split out (unchanged) so work that already knows the
+ * acting user — the background step of a fast listing submission, which
+ * runs after the seller's request has been answered — can use exactly the
+ * same rules.
+ */
+export async function applyListingStatusChange(
+  user: { id: string; role: UserRole },
+  listing: { id: string; status: ListingStatus; title: string; sellerId: string },
+  toStatus: ListingStatus,
+  note?: string
+) {
+  const listingId = listing.id;
   assertValidTransition(listing.status, toStatus, user.role);
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -1266,7 +1284,7 @@ export async function addListingImages(listingId: string, files: File[]) {
  * photo actually shows. Shared by every image-adding path for this
  * listing (there's only one today, but keeping it here rather than inline
  * means a future second upload path can't forget it). */
-function defaultListingImageAltText(listing: { year: number; make: string; model: string; location: string | null }): string {
+export function defaultListingImageAltText(listing: { year: number; make: string; model: string; location: string | null }): string {
   const locationText = listing.location ? ` in ${listing.location}` : "";
   return `${listing.year} ${listing.make} ${listing.model} for sale${locationText} Kenya`;
 }

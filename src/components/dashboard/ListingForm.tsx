@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   createListingFormAction,
@@ -43,6 +45,16 @@ type ListingDefaults = {
   category?: string | null;
 };
 
+type StagedPhoto = {
+  key: string;
+  file: File;
+  previewUrl: string;
+  /** "ready" = already uploaded (token issued); "failed" = will be sent with
+   * the form instead, the original way. */
+  status: "uploading" | "ready" | "failed";
+  token?: string;
+};
+
 const CATEGORY_OPTIONS = [
   { value: "CARS", label: "Cars" },
   { value: "SUV_TRUCKS", label: "SUV & Trucks" },
@@ -69,13 +81,133 @@ export function ListingForm({
   // rest of the form — createListingFormAction saves the listing first,
   // then uploads these in order via the same addListingImage() the edit
   // page's photo manager already uses.
-  const [photos, setPhotos] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [photos, setPhotos] = useState<StagedPhoto[]>([]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // Counts photo batches still being shrunk in the browser; submitting while
   // any are in flight would silently leave those photos out.
   const [preparing, setPreparing] = useState(0);
   const [clickedIntent, setClickedIntent] = useState<"submit" | "draft" | null>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
+
+  // Fast submit (create mode, see src/server/services/listing-fast-submit.ts):
+  // each photo is uploaded the moment it's picked, so Submit only has to send
+  // the form text and returns in a fraction of a second. If anything about
+  // that fails, the form falls back to the original full upload on Submit.
+  const router = useRouter();
+  const pendingRef = useRef<{ pid: string; pidSig: string } | null>(null);
+  const uploadQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const photosRef = useRef<StagedPhoto[]>([]);
+  photosRef.current = photos;
+  const [fastBusy, setFastBusy] = useState<string | null>(null);
+  const [fastError, setFastError] = useState<string | null>(null);
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
+
+  function uploadPhoto(photo: StagedPhoto) {
+    uploadQueueRef.current = uploadQueueRef.current.then(async () => {
+      // Removed before its turn came: nothing to upload.
+      if (!photosRef.current.some((p) => p.key === photo.key)) return;
+      const body = new FormData();
+      body.set("file", photo.file);
+      if (pendingRef.current) {
+        body.set("pid", pendingRef.current.pid);
+        body.set("pidSig", pendingRef.current.pidSig);
+      }
+      let token: string | undefined;
+      try {
+        const res = await fetch("/api/listings/staged-photos", { method: "POST", body });
+        if (res.ok) {
+          const data = (await res.json()) as { pid: string; pidSig: string; token: string };
+          pendingRef.current = { pid: data.pid, pidSig: data.pidSig };
+          token = data.token;
+        }
+      } catch {
+        /* offline / dropped: falls back to uploading with the form */
+      }
+      setPhotos((prev) =>
+        prev.map((p) => (p.key === photo.key ? { ...p, token, status: token ? "ready" : "failed" } : p))
+      );
+      // Removed while it was uploading: tidy up the uploaded copy.
+      if (token && !photosRef.current.some((p) => p.key === photo.key)) discardStagedPhoto(token);
+    });
+  }
+
+  function discardStagedPhoto(token: string) {
+    void fetch("/api/listings/staged-photos", {
+      method: "DELETE",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }).catch(() => undefined);
+  }
+
+  async function handleCreateSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const intent = submitter?.value === "draft" ? "draft" : "submit";
+    setClickedIntent(intent);
+    setFastError(null);
+    const formData = new FormData(form);
+    formData.set("intent", intent);
+
+    const submitTheOriginalWay = () => startTransition(() => formAction(formData));
+
+    // Photos still on their way up: wait for them (usually a moment).
+    if (photosRef.current.some((p) => p.status === "uploading")) {
+      setFastBusy("Uploading photos…");
+      await uploadQueueRef.current;
+    }
+    const current = photosRef.current;
+    if (current.some((p) => p.status !== "ready")) {
+      setFastBusy(null);
+      submitTheOriginalWay();
+      return;
+    }
+
+    setFastBusy(intent === "submit" ? "Submitting…" : "Saving…");
+    const fields: Record<string, string> = {};
+    formData.forEach((value, key) => {
+      if (typeof value === "string" && key !== "intent") fields[key] = value;
+    });
+    const payload = JSON.stringify({
+      fields,
+      intent,
+      pending: pendingRef.current,
+      photoTokens: current.map((p) => p.token),
+    });
+
+    let response: Response;
+    try {
+      // keepalive: the browser finishes sending this even if the seller
+      // closes or leaves the page right after clicking.
+      response = await fetch("/api/listings/quick-create", {
+        method: "POST",
+        keepalive: payload.length < 60_000,
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+    } catch {
+      setFastBusy(null);
+      submitTheOriginalWay();
+      return;
+    }
+
+    const data = (await response.json().catch(() => ({}))) as { id?: string; redirectTo?: string; error?: string };
+    if (!response.ok || !data.id || !data.redirectTo) {
+      setFastBusy(null);
+      setFastError(data.error ?? "Something went wrong. Please try again.");
+      return;
+    }
+
+    if (intent === "submit") {
+      setFastBusy(null);
+      setSubmittedId(data.id);
+      router.prefetch(`/dashboard/listings/${data.id}/edit`);
+    } else {
+      setFastBusy("Draft saved — opening it…");
+      router.push(data.redirectTo);
+    }
+  }
 
   useEffect(() => {
     if (!photosInputRef.current) return;
@@ -106,8 +238,16 @@ export function ListingForm({
     setPreparing((n) => n + 1);
     try {
       const prepared = await Promise.all(incoming.map(compressImageForUpload));
-      const staged = prepared.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
-      setPhotos((prev) => [...prev, ...staged].slice(0, MAX_PHOTOS));
+      const staged: StagedPhoto[] = prepared.map((file) => ({
+        key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        status: "uploading",
+      }));
+      const accepted = staged.slice(0, Math.max(0, MAX_PHOTOS - photosRef.current.length));
+      photosRef.current = [...photosRef.current, ...accepted];
+      setPhotos((prev) => [...prev, ...accepted].slice(0, MAX_PHOTOS));
+      accepted.forEach(uploadPhoto);
     } finally {
       setPreparing((n) => n - 1);
     }
@@ -115,15 +255,46 @@ export function ListingForm({
 
   function removePhoto(index: number) {
     setPhotoError(null);
+    const target = photosRef.current[index];
+    if (target?.token) discardStagedPhoto(target.token);
+    if (target) photosRef.current = photosRef.current.filter((p) => p.key !== target.key);
     setPhotos((prev) => {
-      const target = prev[index];
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
       return prev.filter((_, i) => i !== index);
     });
   }
 
+  if (submittedId) {
+    // Same message and link as the /submitted page; shown immediately.
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="max-w-md rounded-xl border border-slate-200 bg-white p-8 text-center" role="status">
+          <p className="text-lg font-semibold text-slate-900">
+            Listing submitted for review — an admin will review it shortly.
+          </p>
+          <Link
+            href={`/dashboard/listings/${submittedId}/edit`}
+            className="mt-6 inline-block rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand/90"
+          >
+            Edit Listing
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form action={formAction} className="space-y-8">
+    <form
+      action={formAction}
+      onSubmit={mode === "create" ? handleCreateSubmit : undefined}
+      className="space-y-8"
+    >
+      {fastError && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {fastError}
+        </p>
+      )}
       {state.error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           {state.error}
@@ -170,8 +341,8 @@ export function ListingForm({
 
           {photos.length > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {photos.map(({ file, previewUrl }, index) => (
-                <div key={`${file.name}-${index}`} className="overflow-hidden rounded-lg border border-slate-200">
+              {photos.map(({ key, previewUrl, status }, index) => (
+                <div key={key} className="overflow-hidden rounded-lg border border-slate-200">
                   <div className="relative aspect-square bg-slate-100">
                     <Image
                       src={previewUrl}
@@ -184,6 +355,16 @@ export function ListingForm({
                     {index === 0 && (
                       <span className="absolute left-1.5 top-1.5 rounded bg-brand px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
                         Cover
+                      </span>
+                    )}
+                    {status === "uploading" && (
+                      <span className="absolute bottom-1.5 right-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                        Uploading…
+                      </span>
+                    )}
+                    {status === "ready" && (
+                      <span className="absolute bottom-1.5 right-1.5 rounded bg-status-active px-1.5 py-0.5 text-[10px] font-medium text-white" aria-label="Uploaded">
+                        ✓
                       </span>
                     )}
                   </div>
@@ -469,21 +650,29 @@ export function ListingForm({
             type="submit"
             name="intent"
             value="submit"
-            disabled={pending || preparing > 0}
+            disabled={pending || preparing > 0 || fastBusy !== null}
             onClick={() => setClickedIntent("submit")}
             className="rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand/90 disabled:opacity-60"
           >
-            {pending && clickedIntent === "submit" ? "Submitting…" : "Submit"}
+            {fastBusy && clickedIntent === "submit"
+              ? fastBusy
+              : pending && clickedIntent === "submit"
+                ? "Submitting…"
+                : "Submit"}
           </button>
           <button
             type="submit"
             name="intent"
             value="draft"
-            disabled={pending || preparing > 0}
+            disabled={pending || preparing > 0 || fastBusy !== null}
             onClick={() => setClickedIntent("draft")}
             className="rounded-md border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-brand-subtle disabled:opacity-60"
           >
-            {pending && clickedIntent === "draft" ? "Saving…" : "Save as Draft"}
+            {fastBusy && clickedIntent === "draft"
+              ? fastBusy
+              : pending && clickedIntent === "draft"
+                ? "Saving…"
+                : "Save as Draft"}
           </button>
         </div>
       ) : (
