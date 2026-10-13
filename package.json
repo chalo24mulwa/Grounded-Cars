@@ -16,12 +16,10 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
-    "@mux/upchunk": "^3.5.0",
     "@prisma/client": "^6.1.0",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
-    "hls.js": "^1.7.3",
     "next": "^15.1.0",
     "next-auth": "^5.0.0-beta.25",
     "postcss": "^8.4.49",

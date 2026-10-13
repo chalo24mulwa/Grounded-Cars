@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -26,7 +25,6 @@ export function UtilityBarNav({
   contactPhone,
   displayPhone,
   listCarHref,
-  showTrending = false,
 }: {
   featuredHref: string;
   contactPhone: string;
@@ -37,8 +35,6 @@ export function UtilityBarNav({
   // rendered as BecomeSellerButton below since upgrading is a real mutation,
   // not a plain navigation.
   listCarHref?: string;
-  /** The Trending link appears only while that feature is switched on. */
-  showTrending?: boolean;
 }) {
   const pathname = usePathname();
   const isBuyer = listCarHref === undefined;
@@ -51,24 +47,10 @@ export function UtilityBarNav({
     { label: "Top Cars of the Week", href: "/best-deals", active: pathname === "/best-deals" },
     { label: "Upcoming Events", mobileLabel: "Car Events", href: "/events", active: pathname.startsWith("/events") },
     { label: "Support Our CSR", mobileLabel: "CSR Donors", href: "/csr", active: pathname.startsWith("/csr") },
-    ...(showTrending ? [{ label: "Trending", href: "/trending", active: pathname.startsWith("/trending") }] : []),
   ];
 
-  // Phones: the bar is wider than the screen. It starts scrolled to its right
-  // end (same view as before: Call + List Car visible) and can now be swiped
-  // to reach every link — previously the left-most links were cut off and
-  // unreachable. No effect on wider screens, where everything fits.
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const row = rowRef.current;
-    if (row && row.scrollWidth > row.clientWidth) row.scrollLeft = row.scrollWidth;
-  }, []);
-
   return (
-    <div
-      ref={rowRef}
-      className="mx-auto flex max-w-6xl items-center justify-end gap-1.5 overflow-x-auto px-3 py-1.5 text-[11px] max-sm:[justify-content:safe_flex-end] max-sm:[scrollbar-width:none] sm:gap-4 sm:px-4 sm:text-sm max-sm:[&::-webkit-scrollbar]:hidden"
-    >
+    <div className="mx-auto flex max-w-6xl items-center justify-end gap-1.5 overflow-x-auto px-3 py-1.5 text-[11px] sm:gap-4 sm:px-4 sm:text-sm">
       {links.map((link) => (
         <Link
           key={link.label}

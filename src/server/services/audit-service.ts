@@ -29,11 +29,7 @@ export type AuditAction =
   | "IMPERSONATION_START"
   | "IMPERSONATION_END"
   | "MODERATOR_CREATED"
-  | "MODERATOR_DELETED"
-  | "TRENDING_VIDEO_REMOVED"
-  | "TRENDING_COMMENT_REMOVED"
-  | "TRENDING_POSTING_SUSPENDED"
-  | "TRENDING_POSTING_RESTORED";
+  | "MODERATOR_DELETED";
 
 export async function recordAuditLog(
   actorUserId: string,
