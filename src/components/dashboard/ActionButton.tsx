@@ -22,11 +22,15 @@ export function ActionButton({
   pendingLabel,
   variant = "outline",
   onAction,
+  onSuccess,
 }: {
   label: string;
   pendingLabel?: string;
   variant?: Variant;
   onAction: () => Promise<ActionResult>;
+  /** Optional: replaces the default (refresh the page and wait for it), for
+   * callers that show their own success message right away. */
+  onSuccess?: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -37,7 +41,8 @@ export function ActionButton({
     startTransition(async () => {
       const result = await onAction();
       if (result.success) {
-        router.refresh();
+        if (onSuccess) onSuccess();
+        else router.refresh();
       } else {
         setError(result.error ?? "Something went wrong.");
       }

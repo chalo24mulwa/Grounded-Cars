@@ -113,16 +113,22 @@ export async function setFeaturedPlanActiveAction(
 // what actually enforces role restrictions — this action layer's own job is
 // just parsing input and writing the audit trail, never authorization.
 
+// Speed: the approval used to wait, one after another, for the role check,
+// the approval, the audit entry and then a full re-render of the admin page
+// before the button showed anything — 4s with a nearby database, far longer
+// with the live one. Now the role check runs alongside the approval
+// (approveListing re-checks the role itself, so nothing is skipped), the
+// audit entry is written in the background (still always written), and the
+// page refreshes in the background after the button shows success (see
+// PendingListingRow). No revalidatePath here: it made this response wait for
+// the admin page to be rebuilt, and every page involved is rendered fresh on
+// each visit anyway (public listings caches are cleared by the write itself).
 export async function approveListingAction(listingId: string): Promise<ActionResult<{ id: string }>> {
   try {
-    const admin = await requireRole("ADMIN", "MODERATOR");
-    const listing = await approveListing(listingId);
-    await recordAuditLogAfterCommit(admin.id, "LISTING_APPROVED", "CarListing", listing.id, {
+    const [admin, listing] = await Promise.all([requireRole("ADMIN", "MODERATOR"), approveListing(listingId)]);
+    void recordAuditLogAfterCommit(admin.id, "LISTING_APPROVED", "CarListing", listing.id, {
       title: listing.title,
     });
-    revalidatePath("/admin");
-    revalidatePath("/admin/listings");
-    revalidatePath("/cars");
     return { success: true, data: { id: listing.id } };
   } catch (error) {
     return { success: false, error: toUserSafeError(error) };

@@ -1,13 +1,13 @@
 import "server-only";
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { prisma, isTransientConnectionError } from "@/lib/prisma";
 import {
   requireListingOwnership,
   requireListingModerationAccess,
   requireRole,
   AuthorizationError,
 } from "@/server/authorization/ownership";
-import { assertValidTransition } from "@/server/services/listing-status";
+import { assertValidTransition, InvalidStatusTransitionError } from "@/server/services/listing-status";
 import {
   createListingSchema,
   updateListingSchema,
@@ -112,6 +112,12 @@ export async function updateListing(listingId: string, input: UpdateListingInput
  * auditable record — this is what "preserve historical record of the sale"
  * means in practice, including if a SOLD listing is later restored.
  */
+// Prisma's defaults (2s to get a connection, 5s for the whole transaction)
+// are shorter than a single round trip to a database that is waking from
+// sleep, which made status changes fail with an error even though nothing
+// was wrong. Same transaction, same checks, just more patience.
+const TRANSACTION_LIMITS = { maxWait: 15_000, timeout: 30_000 };
+
 export async function changeListingStatus(
   listingId: string,
   toStatus: ListingStatus,
@@ -155,7 +161,7 @@ export async function changeListingStatus(
     });
 
     return result;
-  });
+  }, TRANSACTION_LIMITS);
 
   // The write hook in prisma.ts already cleared the public-data caches while
   // the transaction was still open; clear again now that it has actually
@@ -1062,7 +1068,22 @@ export async function restoreListingToDraft(listingId: string) {
  * so a MODERATOR can act on a listing they don't own, without that also
  * granting them edit access to it. */
 export async function approveListing(listingId: string) {
-  return changeListingStatus(listingId, "ACTIVE", "Approved by admin.", "moderation");
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await changeListingStatus(listingId, "ACTIVE", "Approved by admin.", "moderation");
+    } catch (error) {
+      // A connection the database had already closed fails before anything
+      // is written; re-running is safe because every check runs again.
+      if (isTransientConnectionError(error) && attempt < 3) continue;
+      // Approved a moment ago (a retry, a double click, a second admin): the
+      // listing is live, which is what was asked for.
+      if (error instanceof InvalidStatusTransitionError) {
+        const current = await prisma.carListing.findUnique({ where: { id: listingId } });
+        if (current?.status === "ACTIVE") return current;
+      }
+      throw error;
+    }
+  }
 }
 
 /**

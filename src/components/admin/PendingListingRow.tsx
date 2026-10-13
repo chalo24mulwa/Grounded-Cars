@@ -41,7 +41,31 @@ export function PendingListingRow({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [approved, setApproved] = useState(false);
   const router = useRouter();
+
+  // Shown the moment the approval is saved; the list then refreshes in the
+  // background (the row leaves the queue when that finishes).
+  function handleApproved() {
+    setApproved(true);
+    setTimeout(() => router.refresh(), 1500);
+  }
+
+  if (approved) {
+    return (
+      <div
+        role="status"
+        className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"
+      >
+        <svg viewBox="0 0 20 20" width="20" height="20" fill="currentColor" aria-hidden="true" className="shrink-0 text-green-600">
+          <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.7-9.3a1 1 0 0 0-1.4-1.4L9 10.6 7.7 9.3a1 1 0 0 0-1.4 1.4l2 2a1 1 0 0 0 1.4 0l4-4z" clipRule="evenodd" />
+        </svg>
+        <p>
+          <span className="font-semibold">Successfully Approved!</span> &ldquo;{listing.title}&rdquo; is now live on the marketplace.
+        </p>
+      </div>
+    );
+  }
 
   function submitReject() {
     setError(null);
@@ -95,8 +119,10 @@ export function PendingListingRow({
             )}
             <ActionButton
               label="Approve"
+              pendingLabel="Approving…"
               variant="primary"
               onAction={() => approveListingAction(listing.id)}
+              onSuccess={handleApproved}
             />
             <button
               type="button"

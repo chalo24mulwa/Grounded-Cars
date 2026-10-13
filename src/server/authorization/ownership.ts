@@ -135,9 +135,12 @@ export async function requireListingOwnership(listingId: string) {
  * MODERATOR's access is scoped to this one action by design.
  */
 export async function requireListingModerationAccess(listingId: string) {
-  const user = await requireRole("ADMIN", "MODERATOR");
-
-  const listing = await prisma.carListing.findUnique({ where: { id: listingId } });
+  // Both lookups at once (one database wait instead of two). The role check
+  // still decides: if it throws, the listing result is simply discarded.
+  const [user, listing] = await Promise.all([
+    requireRole("ADMIN", "MODERATOR"),
+    prisma.carListing.findUnique({ where: { id: listingId } }),
+  ]);
   if (!listing) {
     throw new AuthorizationError("Listing not found.");
   }
