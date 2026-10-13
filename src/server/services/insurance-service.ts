@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SwrCache } from "@/lib/swr-cache";
 import { requireRole, AuthorizationError } from "@/server/authorization/ownership";
 import { saveInsurancePolicyImage, deleteInsurancePolicyImage, InvalidImageError } from "@/lib/storage";
 import { checkRateLimit } from "@/server/services/rate-limit";
@@ -46,14 +47,21 @@ export class InsurancePolicyNotOrderableError extends Error {
   }
 }
 
+// Public reads are the same for every visitor, so they're kept in memory
+// (see lib/swr-cache.ts) instead of costing a database round trip on every
+// page view. Any write to these tables clears it (see lib/prisma.ts).
+const publicCache = new SwrCache({ name: "public-insurance", freshMs: 30_000, maxStaleMs: 24 * 60 * 60_000, maxEntries: 200 });
+
 /** Public: only published, non-archived policies, oldest-created first (a
  * stable, predictable order — there's no natural date field to sort by the
  * way Events has eventDate). */
 export async function getPublishedInsurancePolicies() {
-  return prisma.insurancePolicy.findMany({
-    where: { published: true, archived: false },
-    orderBy: { createdAt: "asc" },
-  });
+  return publicCache.get("all", () =>
+    prisma.insurancePolicy.findMany({
+      where: { published: true, archived: false },
+      orderBy: { createdAt: "asc" },
+    })
+  );
 }
 
 /** Public: a single published, non-archived policy — backs the
@@ -61,9 +69,11 @@ export async function getPublishedInsurancePolicies() {
  * non-admin (returns null instead, same "not found" treatment as a bad id,
  * so a draft policy's existence isn't leaked). */
 export async function getPublishedInsurancePolicyById(id: string) {
-  return prisma.insurancePolicy.findFirst({
-    where: { id, published: true, archived: false },
-  });
+  return publicCache.get(`id:${id}`, () =>
+    prisma.insurancePolicy.findFirst({
+      where: { id, published: true, archived: false },
+    })
+  );
 }
 
 const ADMIN_PAGE_SIZE = 20;

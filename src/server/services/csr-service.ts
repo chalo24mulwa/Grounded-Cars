@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { Prisma, type CsrInitiativeStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SwrCache } from "@/lib/swr-cache";
 import { requireRole, AuthorizationError } from "@/server/authorization/ownership";
 import { saveCsrImage, deleteCsrImage, InvalidImageError, MAX_IMAGES_PER_CSR_INITIATIVE } from "@/lib/storage";
 import { slugify } from "@/lib/slugify";
@@ -72,9 +73,18 @@ async function uniqueSlug(title: string): Promise<string> {
 // Public reads
 // ---------------------------------------------------------------------------
 
+// Public reads are the same for every visitor, so they're kept in memory
+// (see lib/swr-cache.ts) instead of costing a database round trip on every
+// page view. Any write to these tables clears it (see lib/prisma.ts).
+const publicCache = new SwrCache({ name: "public-csr", freshMs: 30_000, maxStaleMs: 24 * 60 * 60_000, maxEntries: 200 });
+
 /** Public: published initiatives only, Active ones first, then most recently
  * updated within each group. */
 export async function getPublishedCsrInitiatives() {
+  return publicCache.get("all", () => loadPublishedCsrInitiatives());
+}
+
+async function loadPublishedCsrInitiatives() {
   const initiatives = await prisma.csrInitiative.findMany({
     where: { published: true },
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
@@ -86,10 +96,12 @@ export async function getPublishedCsrInitiatives() {
 }
 
 export async function getPublishedCsrInitiativeBySlug(slug: string) {
-  return prisma.csrInitiative.findFirst({
-    where: { slug, published: true },
-    include: { images: { orderBy: { displayOrder: "asc" } } },
-  });
+  return publicCache.get(`slug:${slug}`, () =>
+    prisma.csrInitiative.findFirst({
+      where: { slug, published: true },
+      include: { images: { orderBy: { displayOrder: "asc" } } },
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------

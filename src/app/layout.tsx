@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { siteConfig } from "@/config/site";
 import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
+import { Suspense } from "react";
+import { FavoritesCookieSeed } from "@/components/listings/FavoritesCookieSeed";
 import { UtilityBar } from "@/components/layout/UtilityBar";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
@@ -59,6 +61,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ReviewsCta />
         <SiteFooter />
         <WhatsAppButton />
+        <Suspense fallback={null}>
+          <FavoritesCookieSeed />
+        </Suspense>
       </body>
     </html>
   );

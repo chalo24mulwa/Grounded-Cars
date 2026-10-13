@@ -29,6 +29,12 @@ const nextConfig = {
     ignoreDuringBuilds: false,
   },
   experimental: {
+    // Speed: pages the visitor has already opened in this tab are reused for
+    // 30 seconds when they go back to them (back button, header links), so
+    // those navigations are instant instead of a new server round trip.
+    // Saving a car, logging in/out and every form submission clear this, so
+    // nobody sees their own change missing.
+    staleTimes: { dynamic: 30 },
     // Next.js's own default (1MB) is far below what this app's own UI
     // advertises: ListingForm's create flow submits every selected photo
     // in one Server Action call (see createListingFormAction), and

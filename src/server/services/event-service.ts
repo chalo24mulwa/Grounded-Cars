@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SwrCache } from "@/lib/swr-cache";
 import { requireRole, AuthorizationError } from "@/server/authorization/ownership";
 import { saveEventImage, deleteEventImage, InvalidImageError } from "@/lib/storage";
 import { createEventSchema, updateEventSchema, type CreateEventInput, type UpdateEventInput } from "@/server/validation/event-schema";
@@ -13,13 +14,20 @@ import { createEventSchema, updateEventSchema, type CreateEventInput, type Updat
 // posting upcoming events").
 // ----------------------------------------------------------------------------
 
+// Public reads are the same for every visitor, so they're kept in memory
+// (see lib/swr-cache.ts) instead of costing a database round trip on every
+// page view. Any write to these tables clears it (see lib/prisma.ts).
+const publicCache = new SwrCache({ name: "public-events", freshMs: 30_000, maxStaleMs: 24 * 60 * 60_000, maxEntries: 200 });
+
 /** Public: only ever returns published events, soonest-first. Events with
  * no date (published announcements without a fixed date) sort last. */
 export async function getPublishedEvents() {
-  return prisma.event.findMany({
-    where: { published: true },
-    orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
-  });
+  return publicCache.get("all", () =>
+    prisma.event.findMany({
+      where: { published: true },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+    })
+  );
 }
 
 /** Public: a single published event by id — used by the detail page. Never
@@ -27,7 +35,7 @@ export async function getPublishedEvents() {
  * "not found" treatment as a bad id, so a draft event's existence isn't
  * leaked). */
 export async function getPublishedEventById(id: string) {
-  return prisma.event.findFirst({ where: { id, published: true } });
+  return publicCache.get(`id:${id}`, () => prisma.event.findFirst({ where: { id, published: true } }));
 }
 
 const ADMIN_PAGE_SIZE = 20;

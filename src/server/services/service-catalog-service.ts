@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { SwrCache } from "@/lib/swr-cache";
 import { requireRole, AuthorizationError } from "@/server/authorization/ownership";
 import { saveServiceImage, deleteServiceImage, InvalidImageError, MAX_IMAGES_PER_SERVICE } from "@/lib/storage";
 import { checkRateLimit } from "@/server/services/rate-limit";
@@ -61,15 +62,22 @@ export class ServiceNotOrderableError extends Error {
 // Public reads
 // ---------------------------------------------------------------------------
 
+// Public reads are the same for every visitor, so they're kept in memory
+// (see lib/swr-cache.ts) instead of costing a database round trip on every
+// page view. Any write to these tables clears it (see lib/prisma.ts).
+const publicCache = new SwrCache({ name: "public-services", freshMs: 30_000, maxStaleMs: 24 * 60 * 60_000, maxEntries: 200 });
+
 /** Public: used by each of the five /services/* pages to look up their own
  * orderable listing by the page's fixed slug. Returns null if the admin
  * hasn't created one yet, or it's still a draft — callers treat null as
  * "render the page exactly as before, no order panel." */
 export async function getPublishedServiceBySlug(slug: string) {
-  return prisma.service.findFirst({
-    where: { slug, published: true },
-    include: { images: { orderBy: { displayOrder: "asc" } } },
-  });
+  return publicCache.get(`slug:${slug}`, () =>
+    prisma.service.findFirst({
+      where: { slug, published: true },
+      include: { images: { orderBy: { displayOrder: "asc" } } },
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------

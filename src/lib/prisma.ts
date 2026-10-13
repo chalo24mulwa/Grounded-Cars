@@ -111,7 +111,18 @@ const MAX_READ_ATTEMPTS = 4;
 // clears the in-memory public-data caches (src/lib/swr-cache.ts). Doing it here
 // — where every query passes — means no current or future write path can
 // forget to.
-const PUBLIC_DATA_MODELS = new Set(["CarListing", "CarImage", "FeaturedSubscription"]);
+const PUBLIC_DATA_MODELS = new Set([
+  "CarListing",
+  "CarImage",
+  "FeaturedSubscription",
+  // Public pages for events, CSR, insurance and services are cached too.
+  "Event",
+  "CsrInitiative",
+  "CsrInitiativeImage",
+  "InsurancePolicy",
+  "Service",
+  "ServiceImage",
+]);
 // Fields nothing public displays. The listing page bumps viewCount on every
 // single visit — if that counted as a change, the cache would be wiped by the
 // very traffic it exists to serve.
