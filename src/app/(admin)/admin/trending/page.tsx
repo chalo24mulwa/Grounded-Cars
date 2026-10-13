@@ -28,7 +28,7 @@ export default async function AdminTrendingPage({ searchParams }: { searchParams
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Live videos", value: stats.liveVideos },
+          { label: "Videos showing now", value: stats.liveVideos },
           { label: "Processing", value: stats.processingVideos },
           { label: "Awaiting deletion", value: stats.awaitingDeletion },
           { label: "Stored at Mux (min)", value: stats.storedMinutes },
