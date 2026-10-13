@@ -1,4 +1,5 @@
 import "server-only";
+import { runTrendingCleanup } from "@/server/services/trending/cleanup-service";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/server/services/notification-service";
@@ -173,10 +174,23 @@ export async function runExpirySweep() {
   const remindersSent = await sendExpiryReminders(now);
   const autoArchivedListings = await archiveStaleSoldListings(now);
 
+  // Trending's 7-day video deletion rides on the same hourly sweep (and the
+  // same external cron URL). Isolated so a problem there — e.g. Mux being
+  // unreachable — can never affect the marketplace jobs above. It does
+  // nothing at all while Trending is switched off.
+  let trendingCleanup: Awaited<ReturnType<typeof runTrendingCleanup>> | { error: string };
+  try {
+    trendingCleanup = await runTrendingCleanup();
+  } catch (error) {
+    console.error("Trending cleanup failed:", error);
+    trendingCleanup = { error: "failed" };
+  }
+
   return {
     expiredSubscriptions,
     remindersSent,
     autoArchivedListings,
+    trendingCleanup,
     ranAt: now,
   };
 }

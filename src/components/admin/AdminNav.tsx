@@ -20,8 +20,12 @@ const NAV_ITEMS = [
   { label: "SEO Diagnostics", href: "/admin/seo" },
 ];
 
-export function AdminNav() {
+// Only listed while the Trending feature is switched on.
+const TRENDING_ITEM = { label: "Trending", href: "/admin/trending" };
+
+export function AdminNav({ showTrending = false }: { showTrending?: boolean }) {
   const pathname = usePathname();
+  const items = showTrending ? [...NAV_ITEMS.slice(0, -2), TRENDING_ITEM, ...NAV_ITEMS.slice(-2)] : NAV_ITEMS;
 
   function isActive(href: string) {
     return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
@@ -30,7 +34,7 @@ export function AdminNav() {
   return (
     <>
       <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -46,7 +50,7 @@ export function AdminNav() {
 
       <nav className="hidden w-56 shrink-0 lg:block">
         <ul className="space-y-1 rounded-xl border border-slate-200 bg-white p-3">
-          {NAV_ITEMS.map((item) => (
+          {items.map((item) => (
             <li key={item.href}>
               <Link
                 href={item.href}

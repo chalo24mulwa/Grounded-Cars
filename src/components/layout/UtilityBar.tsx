@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { siteConfig } from "@/config/site";
 import { UtilityBarNav } from "@/components/layout/UtilityBarNav";
+import { isTrendingEnabled } from "@/lib/trending/config";
 
 // A slim, always-visible strip above the main header — sticky the same way
 // the header is (top-0, above it in the stack), so the header's own sticky
@@ -44,6 +45,7 @@ export async function UtilityBar() {
         contactPhone={siteConfig.contactPhone}
         displayPhone={displayPhone}
         listCarHref={listCarHref}
+        showTrending={isTrendingEnabled()}
       />
     </div>
   );

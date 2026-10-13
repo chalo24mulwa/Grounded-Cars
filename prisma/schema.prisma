@@ -143,25 +143,26 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  accounts               Account[]
-  sessions               Session[]
-  listings               CarListing[]            @relation("SellerListings")
-  favorites              Favorite[]
-  inquiriesSent          Inquiry[]               @relation("BuyerInquiries")
-  inquiriesReceived      Inquiry[]               @relation("SellerInquiries")
-  notifications          Notification[]
-  notificationPreference NotificationPreference?
-  auditLogEntries        AuditLog[]              @relation("AuditActor")
-  statusChangesPerformed ListingStatusHistory[]  @relation("StatusChangedBy")
-  passwordResetTokens    PasswordResetToken[]
-  featuredSubscriptions  FeaturedSubscription[]
-  paymentTransactions    PaymentTransaction[]
-  eventsCreated          Event[]
-  csrInitiativesCreated  CsrInitiative[]
-  servicesCreated        Service[]
+  accounts                 Account[]
+  sessions                 Session[]
+  listings                 CarListing[]            @relation("SellerListings")
+  favorites                Favorite[]
+  inquiriesSent            Inquiry[]               @relation("BuyerInquiries")
+  inquiriesReceived        Inquiry[]               @relation("SellerInquiries")
+  notifications            Notification[]
+  notificationPreference   NotificationPreference?
+  auditLogEntries          AuditLog[]              @relation("AuditActor")
+  statusChangesPerformed   ListingStatusHistory[]  @relation("StatusChangedBy")
+  passwordResetTokens      PasswordResetToken[]
+  featuredSubscriptions    FeaturedSubscription[]
+  paymentTransactions      PaymentTransaction[]
+  eventsCreated            Event[]
+  csrInitiativesCreated    CsrInitiative[]
+  servicesCreated          Service[]
   insurancePoliciesCreated InsurancePolicy[]
   couponsCreated           Coupon[]
   couponRedemptions        CouponRedemption[]
+  trendingProfile          TrendingProfile?
 
   @@index([role])
   @@index([status])
@@ -301,6 +302,7 @@ model CarListing {
   // getFeaturedListingIds() in featured-service.ts, which always compute it
   // live from this relation's status + expiresAt.
   featuredSubscriptions FeaturedSubscription[]
+  trendingVideos        TrendingVideo[]
 
   @@index([sellerId])
   // Default/"newest" sort — status is in the WHERE of every public query,
@@ -1064,4 +1066,243 @@ model CouponRedemption {
   @@index([couponId, userId])
   @@index([couponId, customerPhone])
   @@map("coupon_redemptions")
+}
+
+// ===========================================================================
+// Trending — TikTok-style car video feed (additive; see docs/trending.md).
+//
+// Everything below is self-contained: nothing here is in PUBLIC_DATA_MODELS
+// (src/lib/prisma.ts), so social activity never clears the marketplace's
+// listing caches, and the 7-day cleanup (trending-cleanup-service.ts) only
+// ever deletes rows from these tables. Videos themselves live at Mux, never
+// on this server or in this database.
+// ===========================================================================
+
+enum TrendingVideoStatus {
+  UPLOADING // upload URL issued, file not fully received by Mux yet
+  PROCESSING // Mux is resizing/encoding it
+  READY // playable in the feed (until expiresAt)
+  FAILED // rejected (e.g. longer than 60 minutes) or encoding error
+  EXPIRED // past expiresAt / deleted by owner — waiting for cleanup to finish
+}
+
+enum TrendingReportTarget {
+  VIDEO
+  COMMENT
+  PROFILE
+}
+
+enum TrendingReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// One per user, created automatically (backfilled for existing users by the
+// migration; created on first use for anyone who signs up afterwards).
+model TrendingProfile {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  username    String  @unique
+  displayName String
+  bio         String?
+  avatarUrl   String?
+  avatarKey   String? // storage key, so a replaced/removed picture can be deleted from disk
+
+  // Set by an admin from the Trending moderation screen.
+  postingSuspended Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos         TrendingVideo[]
+  videoLikes     TrendingVideoLike[]
+  comments       TrendingComment[]
+  commentLikes   TrendingCommentLike[]
+  sentMessages   TrendingMessage[]
+  conversationsA TrendingConversation[] @relation("ConversationA")
+  conversationsB TrendingConversation[] @relation("ConversationB")
+  blocksMade     TrendingBlock[]        @relation("BlocksMade")
+  blocksReceived TrendingBlock[]        @relation("BlocksReceived")
+  reportsMade    TrendingReport[]
+
+  @@map("trending_profiles")
+}
+
+model TrendingVideo {
+  id        String              @id @default(cuid())
+  profileId String
+  status    TrendingVideoStatus @default(UPLOADING)
+
+  // Mux identifiers. muxUploadId exists from the start; the asset and its
+  // playback id arrive once Mux has received the file.
+  muxUploadId   String? @unique
+  muxAssetId    String? @unique
+  muxPlaybackId String?
+
+  title     String?
+  caption   String
+  make      String?
+  model     String?
+  year      Int?
+  price     Int?
+  location  String?
+  // Optional link to one of the poster's own marketplace listings.
+  listingId String?
+
+  durationSeconds Float?
+  aspectRatio     String?
+  // Optional custom cover uploaded to this site's own storage (deleted with
+  // the video). Without one, Mux's auto-generated thumbnail is used.
+  coverUrl        String?
+  coverKey        String?
+
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+  shareCount   Int @default(0)
+  viewCount    Int @default(0)
+
+  failureReason  String?
+  removedByAdmin Boolean @default(false)
+
+  // posted time + TRENDING_VIDEO_TTL_HOURS (7 days). Hidden from every list
+  // the moment this passes; the cleanup job then deletes it everywhere.
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile  TrendingProfile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  listing  CarListing?         @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  likes    TrendingVideoLike[]
+  comments TrendingComment[]
+
+  @@index([status, expiresAt, createdAt])
+  @@index([profileId, createdAt])
+  @@index([expiresAt])
+  @@map("trending_videos")
+}
+
+model TrendingVideoLike {
+  id        String   @id @default(cuid())
+  videoId   String
+  profileId String
+  createdAt DateTime @default(now())
+
+  video   TrendingVideo   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  profile TrendingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, profileId])
+  @@index([profileId])
+  @@map("trending_video_likes")
+}
+
+model TrendingComment {
+  id         String    @id @default(cuid())
+  videoId    String
+  authorId   String
+  // One level of threading, like TikTok: a reply points at a top-level comment.
+  parentId   String?
+  body       String
+  likeCount  Int       @default(0)
+  replyCount Int       @default(0)
+  editedAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  video   TrendingVideo         @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  author  TrendingProfile       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  TrendingComment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies TrendingComment[]     @relation("CommentReplies")
+  likes   TrendingCommentLike[]
+
+  @@index([videoId, parentId, createdAt])
+  @@index([parentId, createdAt])
+  @@map("trending_comments")
+}
+
+model TrendingCommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  profileId String
+  createdAt DateTime @default(now())
+
+  comment TrendingComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  profile TrendingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, profileId])
+  @@map("trending_comment_likes")
+}
+
+// Private messages. Deliberately NOT linked to videos by foreign key, so a
+// video's 7-day deletion never touches anyone's messages.
+model TrendingConversation {
+  id            String   @id @default(cuid())
+  // The two participants, stored in a fixed order (profileAId < profileBId)
+  // so a pair can only ever have one conversation.
+  profileAId    String
+  profileBId    String
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  profileA TrendingProfile   @relation("ConversationA", fields: [profileAId], references: [id], onDelete: Cascade)
+  profileB TrendingProfile   @relation("ConversationB", fields: [profileBId], references: [id], onDelete: Cascade)
+  messages TrendingMessage[]
+
+  @@unique([profileAId, profileBId])
+  @@index([profileAId, lastMessageAt])
+  @@index([profileBId, lastMessageAt])
+  @@map("trending_conversations")
+}
+
+model TrendingMessage {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  // Plain reference (no FK) to the video the message was sent from; shown as
+  // "This video is no longer available" once that video has expired.
+  videoRefId     String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation TrendingConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       TrendingProfile      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("trending_messages")
+}
+
+model TrendingBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker TrendingProfile @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked TrendingProfile @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+  @@map("trending_blocks")
+}
+
+model TrendingReport {
+  id           String               @id @default(cuid())
+  reporterId   String
+  targetType   TrendingReportTarget
+  // Plain id of the reported video/comment/profile — no FK, so the report
+  // record survives (and is closed) when the target is deleted.
+  targetId     String
+  reason       String
+  details      String?
+  status       TrendingReportStatus @default(OPEN)
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime             @default(now())
+
+  reporter TrendingProfile @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("trending_reports")
 }
