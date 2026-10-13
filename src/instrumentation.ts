@@ -27,6 +27,14 @@ export async function register() {
           "@/server/services/listing-service"
         );
         await Promise.all([getCategoryCounts(), getMakeModelIndex(), getPublicListings({ sort: "featured", page: 1 })]);
+        // Then the other public pages (events, CSR, insurance), which are
+        // cached in memory only and so start empty after every restart.
+        const [{ getPublishedEvents }, { getPublishedCsrInitiatives }, { getPublishedInsurancePolicies }] = await Promise.all([
+          import("@/server/services/event-service"),
+          import("@/server/services/csr-service"),
+          import("@/server/services/insurance-service"),
+        ]);
+        await Promise.all([getPublishedEvents(), getPublishedCsrInitiatives(), getPublishedInsurancePolicies()]);
       } catch (error) {
         console.error("[startup] cache warm-up failed:", error);
       }
