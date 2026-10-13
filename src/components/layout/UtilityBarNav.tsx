@@ -39,11 +39,14 @@ export function UtilityBarNav({
   const pathname = usePathname();
   const isBuyer = listCarHref === undefined;
 
-  const links: { label: string; href: string; active: boolean }[] = [
+  // `mobileLabel`: a shorter name shown on phones only (below `sm`), to free up
+  // room in this bar. The full label is used everywhere else — tablet and
+  // desktop, page titles, the footer and every other link to these pages.
+  const links: { label: string; mobileLabel?: string; href: string; active: boolean }[] = [
     { label: "Sponsor My Listing", href: featuredHref, active: pathname === "/dashboard/featured" },
     { label: "Top Cars of the Week", href: "/best-deals", active: pathname === "/best-deals" },
-    { label: "Upcoming Events", href: "/events", active: pathname.startsWith("/events") },
-    { label: "Support Our CSR", href: "/csr", active: pathname.startsWith("/csr") },
+    { label: "Upcoming Events", mobileLabel: "Car Events", href: "/events", active: pathname.startsWith("/events") },
+    { label: "Support Our CSR", mobileLabel: "CSR Donors", href: "/csr", active: pathname.startsWith("/csr") },
   ];
 
   return (
@@ -58,7 +61,14 @@ export function UtilityBarNav({
             link.active ? "bg-brand-accent text-white" : "text-slate-800 hover:bg-black/5"
           )}
         >
-          {link.label}
+          {link.mobileLabel ? (
+            <>
+              <span className="sm:hidden">{link.mobileLabel}</span>
+              <span className="max-sm:hidden">{link.label}</span>
+            </>
+          ) : (
+            link.label
+          )}
         </Link>
       ))}
       <a
