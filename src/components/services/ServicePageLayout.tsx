@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
+import { ShareButton } from "@/components/share/ShareButton";
 
 // Shared presentational shell for every /services/* page — one place
 // decides the layout (hero, benefit list, contact CTA), each page just
@@ -84,9 +85,13 @@ export function ServicePageLayout({
           </div>
         )
       )}
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
-        {eyebrow}
-      </span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
+          {eyebrow}
+        </span>
+        {/* No path: shares the service page the visitor is on. */}
+        <ShareButton variant="pill" target={{ title: `${serviceName} | ${siteConfig.name}`, imageUrl: heroImage?.src }} />
+      </div>
       <h1 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">{title}</h1>
       <p className="mt-4 text-base leading-relaxed text-slate-600">{intro}</p>
 

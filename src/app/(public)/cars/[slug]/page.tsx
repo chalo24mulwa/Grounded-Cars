@@ -14,6 +14,7 @@ import { SoldBanner } from "@/components/ui/SoldBanner";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
 import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
+import { ShareButton } from "@/components/share/ShareButton";
 import { InquiryForm } from "@/components/listings/InquiryForm";
 import { CarImageGallery } from "@/components/listings/CarImageGallery";
 import { CarCard } from "@/components/listings/CarCard";
@@ -316,11 +317,22 @@ export default async function CarDetailPage({
         )}
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-3xl font-bold text-slate-900">{listing.title}</h1>
-          <FavoriteButton
-            listingId={listing.id}
-            initialFavorited={favoriteIds.has(listing.id)}
-            isAuthenticated={Boolean(session?.user)}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <ShareButton
+              variant="pill"
+              target={{
+                path: `/cars/${listing.slug}`,
+                title: listing.title,
+                subtitle: `${listing.currency} ${Number(listing.price).toLocaleString()}`,
+                imageUrl: listing.images[0]?.imageUrl,
+              }}
+            />
+            <FavoriteButton
+              listingId={listing.id}
+              initialFavorited={favoriteIds.has(listing.id)}
+              isAuthenticated={Boolean(session?.user)}
+            />
+          </div>
         </div>
         <p className="mt-1 text-lg text-slate-600">
           {listing.year} · {listing.make} {listing.model}

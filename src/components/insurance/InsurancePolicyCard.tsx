@@ -1,5 +1,6 @@
 import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
+import { ShareButton } from "@/components/share/ShareButton";
 
 export function InsurancePolicyCard({
   policy,
@@ -39,9 +40,19 @@ export function InsurancePolicyCard({
             InsurancePurchaseForm / initiateInsurancePurchase), this reads
             as the real price rather than a "from" range-starting-point —
             same underlying startingPrice field, just clearer public copy. */}
-        <p className="mt-4 text-lg font-bold text-brand">
-          {policy.currency} {policy.startingPrice.toLocaleString()}
-        </p>
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <p className="text-lg font-bold text-brand">
+            {policy.currency} {policy.startingPrice.toLocaleString()}
+          </p>
+          <ShareButton
+            target={{
+              path: `/services/car-insurance/${policy.id}`,
+              title: policy.title,
+              subtitle: `${policy.currency} ${policy.startingPrice.toLocaleString()}`,
+              imageUrl: policy.imageUrl ?? undefined,
+            }}
+          />
+        </div>
 
         <Link
           href={`/services/car-insurance/${policy.id}`}

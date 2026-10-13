@@ -6,6 +6,7 @@ import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
 import { CarCardImageCarousel } from "@/components/listings/CarCardImageCarousel";
 import { CardLinkPending } from "@/components/listings/CardLinkPending";
+import { ShareButton } from "@/components/share/ShareButton";
 import type { CarListing, CarImage, ListingStatus } from "@prisma/client";
 
 type CarCardProps = {
@@ -66,9 +67,20 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false,
         <p className="text-sm text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">
           {listing.year} · {listing.make} {listing.model}
         </p>
-        <p className="font-bold text-brand max-sm:text-sm max-sm:leading-tight">
-          {listing.currency} {Number(listing.price).toLocaleString()}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate font-bold text-brand max-sm:text-sm max-sm:leading-tight">
+            {listing.currency} {Number(listing.price).toLocaleString()}
+          </p>
+          <ShareButton
+            target={{
+              path: `/cars/${listing.slug}`,
+              title: listing.title,
+              subtitle: `${listing.currency} ${Number(listing.price).toLocaleString()}`,
+              imageUrl: listing.images[0]?.imageUrl,
+            }}
+            className="max-sm:h-6 max-sm:w-6 max-sm:[&>svg]:h-3 max-sm:[&>svg]:w-3"
+          />
+        </div>
         {listing.location && <p className="text-xs text-slate-400 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">{listing.location}</p>}
       </div>
 

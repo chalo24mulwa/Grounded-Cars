@@ -1,5 +1,6 @@
 import { UploadedImage } from "@/components/ui/UploadedImage";
 import Link from "next/link";
+import { ShareButton } from "@/components/share/ShareButton";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublishedInsurancePolicyById } from "@/server/services/insurance-service";
@@ -57,7 +58,19 @@ export default async function InsurancePolicyDetailPage({ params }: { params: Pr
             )}
           </div>
 
-          <h1 className="mt-6 text-2xl font-bold text-slate-900 sm:text-3xl">{policy.title}</h1>
+          <div className="mt-6 flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{policy.title}</h1>
+            <ShareButton
+              variant="pill"
+              className="shrink-0"
+              target={{
+                path: `/services/car-insurance/${policy.id}`,
+                title: policy.title,
+                subtitle: `${policy.currency} ${Number(policy.startingPrice).toLocaleString()}`,
+                imageUrl: policy.imageUrl ?? undefined,
+              }}
+            />
+          </div>
           <p className="mt-4 whitespace-pre-line leading-relaxed text-slate-700">{policy.description}</p>
 
           <p className="mt-6 text-sm text-slate-500">
