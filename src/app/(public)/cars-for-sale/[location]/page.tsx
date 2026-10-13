@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getPublicListings, getDistinctLocations } from "@/server/services/listing-service";
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { CarCard } from "@/components/listings/CarCard";
+import { Pagination } from "@/components/listings/Pagination";
 import { siteConfig } from "@/config/site";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -38,18 +39,28 @@ export async function generateMetadata({
   };
 }
 
+
+/** ?page=N from the URL (48 cars per page; anything invalid means page 1). */
+function parsePage(value: string | string[] | undefined): number {
+  const n = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(n) && n > 1 ? n : 1;
+}
+
 export default async function CarsForSaleLocationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ location: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { location: param } = await params;
+  const requestedPage = parsePage((await searchParams).page);
   const location = await findMatchingLocation(param);
   if (!location) notFound();
 
   const session = await auth();
-  const [{ listings, totalCount }, favoriteIds] = await Promise.all([
-    getPublicListings({ location }),
+  const [{ listings, totalCount, page, totalPages }, favoriteIds] = await Promise.all([
+    getPublicListings({ location, page: requestedPage }),
     session?.user ? getMyFavoriteListingIds() : Promise.resolve(new Set<string>()),
   ]);
 
@@ -116,6 +127,12 @@ export default async function CarsForSaleLocationPage({
           ))}
         </div>
       )}
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        buildHref={(p) => (p === 1 ? `/cars-for-sale/${encodeURIComponent(param)}` : `/cars-for-sale/${encodeURIComponent(param)}?page=${p}`)}
+      />
 
       <p className="mt-8 text-sm text-slate-500">
         Looking elsewhere?{" "}

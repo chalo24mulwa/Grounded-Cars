@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getPublicListings, getMakeModelIndex } from "@/server/services/listing-service";
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { CarCard } from "@/components/listings/CarCard";
+import { Pagination } from "@/components/listings/Pagination";
 import { HeroSearchBar } from "@/components/home/HeroSearchBar";
 import { StickySearchBar } from "@/components/home/StickySearchBar";
 import { BecomeSellerButton } from "@/components/auth/BecomeSellerButton";
@@ -45,10 +46,12 @@ export const metadata: Metadata = {
   },
 };
 
-// How many listings to tease on the homepage before sending the visitor to
-// the full /cars browse experience (filters, sort, pagination) — this page
-// stays a simple preview, not a second copy of that page.
-const HOME_LISTING_COUNT = 8;
+// The homepage lists cars 48 per page (the same page size as /cars), with
+// page links underneath once there are more than 48: /?page=2, /?page=3 …
+function parsePage(value: string | string[] | undefined): number {
+  const n = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(n) && n > 1 ? n : 1;
+}
 
 // The marketing landing page — "/" used to just redirect straight to /cars
 // (no homepage had been designed yet). Deliberately thin: a hero banner
@@ -59,17 +62,22 @@ const HERO_SRC = "/images/home/hero-1080.webp";
 const HERO_SRCSET =
   "/images/home/hero-640.webp 640w, /images/home/hero-1080.webp 1080w, /images/home/hero-1600.webp 1600w";
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const requestedPage = parsePage((await searchParams).page);
   // Starts the hero download from the <head>, before the browser reaches the
   // <img> further down the HTML.
   preload(HERO_SRC, { as: "image", imageSrcSet: HERO_SRCSET, imageSizes: "100vw", fetchPriority: "high" });
   const session = await auth();
-  const [{ listings, totalCount }, makeModelIndex, favoriteIds] = await Promise.all([
-    getPublicListings({ sort: "featured", page: 1 }),
+  const [{ listings, totalCount, page, totalPages }, makeModelIndex, favoriteIds] = await Promise.all([
+    getPublicListings({ sort: "featured", page: requestedPage }),
     getMakeModelIndex(),
     session?.user ? getMyFavoriteListingIds() : Promise.resolve(new Set<string>()),
   ]);
-  const featuredListings = listings.slice(0, HOME_LISTING_COUNT);
+  const featuredListings = listings;
 
   return (
     <div>
@@ -182,7 +190,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-12">
+      <section id="listings" className="mx-auto max-w-6xl scroll-mt-28 px-4 py-12">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Browse Vehicles</h2>
@@ -212,6 +220,11 @@ export default async function HomePage() {
             ))}
           </div>
         )}
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          buildHref={(p) => (p === 1 ? "/#listings" : `/?page=${p}#listings`)}
+        />
       </section>
     </div>
   );

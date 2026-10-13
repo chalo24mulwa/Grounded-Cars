@@ -67,10 +67,13 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false,
         <p className="text-sm text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">
           {listing.year} · {listing.make} {listing.model}
         </p>
+        <p className="font-bold text-brand max-sm:text-sm max-sm:leading-tight">
+          {listing.currency} {Number(listing.price).toLocaleString()}
+        </p>
+        {/* Location and share icon share the last line, so the price above
+            keeps its full width on every screen size. */}
         <div className="flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate font-bold text-brand max-sm:text-sm max-sm:leading-tight">
-            {listing.currency} {Number(listing.price).toLocaleString()}
-          </p>
+          <p className="min-w-0 truncate text-xs text-slate-400 max-sm:text-[11px] max-sm:leading-tight">{listing.location}</p>
           <ShareButton
             target={{
               path: `/cars/${listing.slug}`,
@@ -78,10 +81,9 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false,
               subtitle: `${listing.currency} ${Number(listing.price).toLocaleString()}`,
               imageUrl: listing.images[0]?.imageUrl,
             }}
-            className="max-sm:h-6 max-sm:w-6 max-sm:[&>svg]:h-3 max-sm:[&>svg]:w-3"
+            className="h-7 w-7 max-sm:h-6 max-sm:w-6 max-sm:[&>svg]:h-3 max-sm:[&>svg]:w-3"
           />
         </div>
-        {listing.location && <p className="text-xs text-slate-400 max-sm:truncate max-sm:text-[11px] max-sm:leading-tight">{listing.location}</p>}
       </div>
 
       <CardLinkPending />

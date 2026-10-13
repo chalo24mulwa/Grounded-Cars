@@ -14,6 +14,7 @@ import { SoldBanner } from "@/components/ui/SoldBanner";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
 import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
+import { Pagination } from "@/components/listings/Pagination";
 import { ShareButton } from "@/components/share/ShareButton";
 import { InquiryForm } from "@/components/listings/InquiryForm";
 import { CarImageGallery } from "@/components/listings/CarImageGallery";
@@ -156,10 +157,19 @@ export async function generateMetadata({
   };
 }
 
+
+/** ?page=N from the URL (48 cars per page; anything invalid means page 1). */
+function parsePage(value: string | string[] | undefined): number {
+  const n = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(n) && n > 1 ? n : 1;
+}
+
 export default async function CarDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
   const listing = await getPublicListingBySlug(slug);
@@ -179,7 +189,7 @@ export default async function CarDetailPage({
   if (!listing) {
     const make = await findMatchingMake(slug);
     if (!make) notFound();
-    return <MakeBrowsePage make={make} />;
+    return <MakeBrowsePage make={make} slug={slug} page={parsePage((await searchParams).page)} />;
   }
 
   // Related vehicles are deliberately NOT awaited here — see
@@ -510,10 +520,10 @@ async function generateMakePageMetadata(param: string): Promise<Metadata> {
   };
 }
 
-async function MakeBrowsePage({ make }: { make: string }) {
+async function MakeBrowsePage({ make, slug, page: requestedPage }: { make: string; slug: string; page: number }) {
   const session = await auth();
-  const [{ listings, totalCount }, favoriteIds] = await Promise.all([
-    getPublicListings({ make }),
+  const [{ listings, totalCount, page, totalPages }, favoriteIds] = await Promise.all([
+    getPublicListings({ make, page: requestedPage }),
     session?.user ? getMyFavoriteListingIds() : Promise.resolve(new Set<string>()),
   ]);
 
@@ -578,6 +588,12 @@ async function MakeBrowsePage({ make }: { make: string }) {
           ))}
         </div>
       )}
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        buildHref={(p) => (p === 1 ? `/cars/${encodeURIComponent(slug)}` : `/cars/${encodeURIComponent(slug)}?page=${p}`)}
+      />
 
       <p className="mt-8 text-sm text-slate-500">
         Looking for a different make?{" "}

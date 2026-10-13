@@ -401,7 +401,9 @@ const CARD_IMAGE_ORDER_BY = [{ isPrimary: "desc" as const }, { displayOrder: "as
 // hundreds of image rows just for grid previews; the full set is still only
 // ever a click away on the detail page.
 const CARD_IMAGE_PREVIEW_COUNT = 6;
-const DEFAULT_PAGE_SIZE = 24;
+// 48 cars per page on every listing page (home, /cars, Best Deals, make and
+// location pages); page 2 only exists once there are more than 48.
+const DEFAULT_PAGE_SIZE = 48;
 const MAX_PAGE_SIZE = 60;
 
 const RELATED_STOPWORDS = new Set([
@@ -659,20 +661,23 @@ export async function getPublicListings(filters: PublicListingFilters = {}) {
     const result = queryCatalog(catalog.listings, filters);
     if (isDefaultFirstPage(filters) && lastPrimedCatalogAt !== catalog.loadedAt) {
       lastPrimedCatalogAt = catalog.loadedAt;
-      void primeListingDetails(result.listings.map((listing) => listing.slug));
+      void primeListingDetails(result.listings.slice(0, 24).map((listing) => listing.slug));
     }
     return result;
   }
 
-  if (filters.q) return searchResultsCache.get(JSON.stringify(filters), () => loadPublicListings(filters));
-  return publicListingsCache.get(JSON.stringify(filters), async () => {
+  // Page size is part of the key so pages saved (to disk) with an older page
+  // size are never served after it changes.
+  const cacheKey = JSON.stringify({ ...filters, pageSize: DEFAULT_PAGE_SIZE });
+  if (filters.q) return searchResultsCache.get(cacheKey, () => loadPublicListings(filters));
+  return publicListingsCache.get(cacheKey, async () => {
     const result = await loadPublicListings(filters);
     // Only for the unfiltered first page (the homepage and the default /cars
     // view): those are what nearly every visit starts from, and it keeps
     // arbitrary filter combinations from each triggering a batch of
     // background loads.
     if (isDefaultFirstPage(filters)) {
-      void primeListingDetails(result.listings.map((listing) => listing.slug));
+      void primeListingDetails(result.listings.slice(0, 24).map((listing) => listing.slug));
     }
     return result;
   });

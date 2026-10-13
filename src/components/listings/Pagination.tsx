@@ -14,35 +14,40 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
 
-  // A handful of page numbers around the current one, plus first/last —
-  // scales fine visually even if totalPages is in the thousands, since we
-  // never render more than ~7 links regardless of totalPages.
-  const pages = new Set<number>([1, totalPages, page, page - 1, page + 1].filter(
-    (p) => p >= 1 && p <= totalPages
-  ));
+  // First and last page, plus up to two pages either side of the current
+  // one (1 2 3 4 5 … 12). Never more than ~9 links, however many pages.
+  const pages = new Set<number>(
+    [1, totalPages, page - 2, page - 1, page, page + 1, page + 2].filter((p) => p >= 1 && p <= totalPages)
+  );
   const sorted = Array.from(pages).sort((a, b) => a - b);
+  const isFirst = page <= 1;
+  const isLast = page >= totalPages;
 
   return (
-    <nav aria-label="Pagination" className="mt-8 flex items-center justify-center gap-1">
+    <nav aria-label="Pagination" className="mt-8 flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
       <Link
         href={buildHref(Math.max(1, page - 1))}
-        aria-disabled={page === 1}
+        aria-disabled={isFirst}
+        aria-label="Previous page"
+        tabIndex={isFirst ? -1 : undefined}
         className={clsx(
-          "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium",
-          page === 1 ? "pointer-events-none opacity-40" : "text-slate-700 hover:bg-brand-subtle"
+          "inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 px-2.5 text-sm font-medium sm:px-3",
+          isFirst ? "pointer-events-none opacity-40" : "text-slate-700 hover:bg-brand-subtle"
         )}
       >
-        Previous
+        <Arrow direction="left" />
+        <span className="hidden sm:inline">Previous</span>
       </Link>
 
       {sorted.map((p, i) => (
-        <span key={p} className="flex items-center gap-1">
-          {i > 0 && p - sorted[i - 1]! > 1 && <span className="px-1 text-slate-400">…</span>}
+        <span key={p} className="flex items-center gap-1 sm:gap-1.5">
+          {i > 0 && p - sorted[i - 1]! > 1 && <span className="px-0.5 text-slate-400">…</span>}
           <Link
             href={buildHref(p)}
             aria-current={p === page ? "page" : undefined}
+            aria-label={`Page ${p}`}
             className={clsx(
-              "rounded-md px-3 py-1.5 text-sm font-medium",
+              "inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2.5 text-sm font-medium",
               p === page ? "bg-brand text-white" : "text-slate-700 hover:bg-brand-subtle"
             )}
           >
@@ -53,14 +58,25 @@ export function Pagination({
 
       <Link
         href={buildHref(Math.min(totalPages, page + 1))}
-        aria-disabled={page === totalPages}
+        aria-disabled={isLast}
+        aria-label="Next page"
+        tabIndex={isLast ? -1 : undefined}
         className={clsx(
-          "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium",
-          page === totalPages ? "pointer-events-none opacity-40" : "text-slate-700 hover:bg-brand-subtle"
+          "inline-flex h-9 items-center gap-1 rounded-md border border-slate-300 px-2.5 text-sm font-medium sm:px-3",
+          isLast ? "pointer-events-none opacity-40" : "text-slate-700 hover:bg-brand-subtle"
         )}
       >
-        Next
+        <span className="hidden sm:inline">Next</span>
+        <Arrow direction="right" />
       </Link>
     </nav>
+  );
+}
+
+function Arrow({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={direction === "left" ? "M12.5 4.5L7 10l5.5 5.5" : "M7.5 4.5L13 10l-5.5 5.5"} />
+    </svg>
   );
 }
