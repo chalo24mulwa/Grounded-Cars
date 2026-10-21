@@ -3,16 +3,9 @@ import { notFound } from "next/navigation";
 import { getEventForAdmin } from "@/server/services/event-service";
 import { AuthorizationError } from "@/server/authorization/ownership";
 import { EventForm } from "@/components/admin/EventForm";
+import { splitEventDate } from "@/lib/event-utils";
 
 export const metadata = { title: "Edit Event" };
-
-// "YYYY-MM-DD" for the <input type="date"> defaultValue — toISOString()
-// then slicing avoids a timezone-shifted off-by-one day some locale-based
-// formatters would introduce.
-function toDateInputValue(date: Date | null): string {
-  if (!date) return "";
-  return date.toISOString().slice(0, 10);
-}
 
 export default async function EditEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,6 +17,8 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     if (error instanceof AuthorizationError) notFound();
     throw error;
   }
+
+  const { date, time } = splitEventDate(event.eventDate);
 
   return (
     <div>
@@ -43,7 +38,8 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
             title: event.title,
             description: event.description,
             location: event.location ?? "",
-            eventDate: toDateInputValue(event.eventDate),
+            eventDate: date,
+            eventTime: time,
           }}
         />
       </div>

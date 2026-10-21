@@ -6,6 +6,13 @@ import {
 } from "@/server/services/listing-service";
 import { getPublishedEvents } from "@/server/services/event-service";
 import { getPublishedCsrInitiatives } from "@/server/services/csr-service";
+import { eventPath } from "@/lib/event-utils";
+
+// Regenerated at most every 10 minutes. Without this, Next.js builds the sitemap
+// once, at build time, and serves that copy until the next deploy — so a newly
+// published event or car would stay out of it (and out of Google's sight) for
+// as long as the site went without a redeploy.
+export const revalidate = 600;
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -56,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const eventEntries: MetadataRoute.Sitemap = events.map((event) => ({
-    url: `${APP_URL}/events/${event.id}`,
+    url: `${APP_URL}${eventPath(event)}`,
     lastModified: event.updatedAt,
     changeFrequency: "weekly",
     priority: 0.5,

@@ -30,6 +30,7 @@ export function EventForm({
     description: string;
     location: string;
     eventDate: string; // "YYYY-MM-DD" or ""
+    eventTime: string; // "HH:mm" (East Africa Time) or ""
   };
   currentImageUrl?: string | null;
 }) {
@@ -78,18 +79,34 @@ export function EventForm({
           />
         </div>
         <div>
-          <label htmlFor="location" className={labelClass}>
-            Location <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="eventTime" className={labelClass}>
+            Start time <span className="font-normal text-slate-400">(optional, East Africa Time)</span>
           </label>
           <input
-            id="location"
-            name="location"
-            type="text"
-            defaultValue={defaults?.location}
-            placeholder="e.g. KICC, Nairobi"
+            id="eventTime"
+            name="eventTime"
+            type="time"
+            defaultValue={defaults?.eventTime}
             className={inputClass}
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="location" className={labelClass}>
+          Location <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <input
+          id="location"
+          name="location"
+          type="text"
+          defaultValue={defaults?.location}
+          placeholder="e.g. KICC, Nairobi"
+          className={inputClass}
+        />
+        <p className="mt-1 text-xs text-slate-400">
+          Add a date and a location so Google can show this event with its details in search results.
+        </p>
       </div>
 
       <div>

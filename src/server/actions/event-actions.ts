@@ -33,6 +33,7 @@ function readEventFormData(formData: FormData) {
     description: str("description") ?? "",
     location: str("location"),
     eventDate: str("eventDate"),
+    eventTime: str("eventTime"),
   };
 }
 

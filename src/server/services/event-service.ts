@@ -19,8 +19,9 @@ import { createEventSchema, updateEventSchema, type CreateEventInput, type Updat
 // page view. Any write to these tables clears it (see lib/prisma.ts).
 const publicCache = new SwrCache({ name: "public-events", freshMs: 30_000, maxStaleMs: 24 * 60 * 60_000, maxEntries: 200 });
 
-/** Public: only ever returns published events, soonest-first. Events with
- * no date (published announcements without a fixed date) sort last. */
+/** Public: every published event (the page groups and orders them into
+ * upcoming and past per request — see groupEventsByTime in lib/event-utils.ts
+ * — so what's cached here never goes stale as the calendar moves on). */
 export async function getPublishedEvents() {
   return publicCache.get("all", () =>
     prisma.event.findMany({
@@ -118,8 +119,11 @@ export async function updateEvent(id: string, input: UpdateEventInput, imageFile
     data: {
       title: data.title,
       description: data.description,
-      location: data.location,
-      eventDate: data.eventDate,
+      // `?? null`, not the bare value: Prisma treats `undefined` as "leave
+      // unchanged", so without it an admin who emptied the date or location
+      // field saw "Saved." while the old value quietly stayed.
+      location: data.location ?? null,
+      eventDate: data.eventDate ?? null,
       imageUrl,
     },
   });

@@ -2,8 +2,15 @@ import Link from "next/link";
 import { getAllEventsForAdmin } from "@/server/services/event-service";
 import { Pagination } from "@/components/listings/Pagination";
 import { EventPublishToggle } from "@/components/admin/EventPublishToggle";
+import { describeEventDate, formatEventDate, formatEventTime } from "@/lib/event-utils";
 
 export const metadata = { title: "Events" };
+
+function formatWhen(eventDate: Date): string {
+  const when = describeEventDate(eventDate);
+  const date = formatEventDate(when.dateKey, "short");
+  return when.time ? `${date}, ${formatEventTime(when.time)}` : date;
+}
 
 // Auth/role check lives in the (admin) layout — getAllEventsForAdmin()
 // still independently requires ADMIN, so data access is never gated by the
@@ -53,7 +60,7 @@ export default async function AdminEventsPage({
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold text-slate-900">{event.title}</p>
               <p className="text-xs text-slate-500">
-                {event.eventDate ? event.eventDate.toLocaleDateString() : "No date set"}
+                {event.eventDate ? formatWhen(event.eventDate) : "No date set"}
                 {event.location ? ` · ${event.location}` : ""}
               </p>
             </div>
