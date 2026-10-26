@@ -53,7 +53,7 @@ export default async function CsrInitiativeDetailPage({ params }: { params: Prom
             <CarImageGallery images={galleryImages} title={initiative.title} />
           ) : (
             <div className="flex aspect-[16/10] items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-400">
-              Car Marketplace CSR
+              Grounded Cars CSR
             </div>
           )}
 

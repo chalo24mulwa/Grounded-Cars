@@ -54,7 +54,7 @@ export default async function InsurancePolicyDetailPage({ params }: { params: Pr
             {policy.imageUrl ? (
               <UploadedImage src={policy.imageUrl} alt={policy.title} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 60vw" priority />
             ) : (
-              <div className="flex h-full items-center justify-center text-slate-400">Car Marketplace</div>
+              <div className="flex h-full items-center justify-center text-slate-400">Grounded Cars</div>
             )}
           </div>
 

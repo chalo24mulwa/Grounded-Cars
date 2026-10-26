@@ -164,7 +164,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         {event.imageUrl ? (
           <UploadedImage src={event.imageUrl} alt={event.title} fill className="object-cover" sizes="768px" priority />
         ) : (
-          <div className="flex h-full items-center justify-center text-slate-400">Car Marketplace</div>
+          <div className="flex h-full items-center justify-center text-slate-400">Grounded Cars</div>
         )}
       </div>
 

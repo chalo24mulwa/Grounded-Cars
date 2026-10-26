@@ -17,7 +17,7 @@ const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").rep
 
 const TITLE = "Car Events & Shows in Kenya";
 const DESCRIPTION =
-  "Upcoming car shows, dealer days and promotions in Kenya from Car Marketplace — with the date, time and location of each event, and past events listed below.";
+  "Upcoming car shows, dealer days and promotions in Kenya from Grounded Cars — with the date, time and location of each event, and past events listed below.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -53,7 +53,7 @@ function EventCard({ event, past }: { event: EventRow; past: boolean }) {
             sizes="(max-width: 768px) 100vw, 33vw"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">Car Marketplace</div>
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">Grounded Cars</div>
         )}
         {past && (
           <span className="absolute left-2 top-2 rounded-full bg-slate-900/70 px-2.5 py-0.5 text-xs font-semibold text-white">

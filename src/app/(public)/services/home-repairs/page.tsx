@@ -24,7 +24,7 @@ export default async function HomeRepairsPage() {
       serviceName="Home Repairs"
       heroImage={{
         src: "/images/services/home-repairs-hero.jpg",
-        alt: "Car Marketplace professional car home repair services — comprehensive care for your car, any time, any where.",
+        alt: "Grounded Cars professional car home repair services — comprehensive care for your car, any time, any where.",
         width: 1024,
         height: 572,
         align: "left",

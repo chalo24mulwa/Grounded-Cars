@@ -7,9 +7,9 @@ import type { Metadata } from "next";
 // the name; `title.absolute` is Next.js's documented way to opt one page out
 // of the parent template entirely.
 export const metadata: Metadata = {
-  title: { absolute: "About Car Marketplace | Buy & Sell Cars Online in Kenya" },
+  title: { absolute: "About Grounded Cars | Buy & Sell Cars Online in Kenya" },
   description:
-    "Car Marketplace is a fast-growing Kenyan online car marketplace where dealers and car owners can list vehicles for free and connect with targeted buyers. Find, buy and sell cars across Kenya while supporting community initiatives.",
+    "Grounded Cars is a fast-growing Kenyan online car marketplace where dealers and car owners can list vehicles for free and connect with targeted buyers. Find, buy and sell cars across Kenya while supporting community initiatives.",
   alternates: { canonical: "/about-us" },
 };
 
@@ -30,7 +30,7 @@ export default function AboutUsPage() {
             Driving Kenya&apos;s Car Market Forward
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">
-            Car Marketplace is one of Kenya&apos;s fast-growing online marketplaces for buying and
+            Grounded Cars is one of Kenya&apos;s fast-growing online marketplaces for buying and
             selling vehicles, created to make the car-buying and selling experience simpler, more
             accessible, and more connected.
           </p>
@@ -65,7 +65,7 @@ export default function AboutUsPage() {
           </h2>
           <div className="mt-4 space-y-4 text-base leading-relaxed text-slate-600">
             <p>
-              Car Marketplace provides a digital platform where individual car owners, dealers,
+              Grounded Cars provides a digital platform where individual car owners, dealers,
               and automotive businesses can list their vehicles and connect directly with
               potential buyers.
             </p>
@@ -74,7 +74,7 @@ export default function AboutUsPage() {
             </p>
             <p>
               Whether you&apos;re selling your first car, operating a dealership, looking for a
-              reliable locally used vehicle, or searching for a fresh import, Car Marketplace is
+              reliable locally used vehicle, or searching for a fresh import, Grounded Cars is
               designed to bring buyers and sellers closer together.
             </p>
           </div>
@@ -112,7 +112,7 @@ export default function AboutUsPage() {
               initiatives.
             </p>
             <p>
-              Through these initiatives, Car Marketplace aims to contribute to communities across
+              Through these initiatives, Grounded Cars aims to contribute to communities across
               Kenya by supporting vulnerable groups and people in need, including community
               outreach, food support, and visits and assistance to vulnerable and street-connected
               children.
@@ -195,7 +195,7 @@ export default function AboutUsPage() {
 
           <div className="mt-6 h-[3px] w-24 mx-auto rounded-full bg-gradient-to-r from-brand via-brand-gold to-brand-accent" />
 
-          <p className="mt-6 text-2xl font-bold text-slate-900 sm:text-3xl">Car Marketplace</p>
+          <p className="mt-6 text-2xl font-bold text-slate-900 sm:text-3xl">Grounded Cars</p>
           <p className="mt-1 bg-gradient-to-r from-brand-accent via-brand-gold to-brand bg-clip-text text-lg font-semibold text-transparent sm:text-xl">
             Find. Buy. Sell. Drive. Give Back.
           </p>

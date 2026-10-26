@@ -24,7 +24,7 @@ export default async function CarFinancingPage() {
       serviceName="Car Financing"
       heroImage={{
         src: "/images/services/car-financing-hero.jpg",
-        alt: "Car Marketplace car financing — logbook loans, purchase financing, import financing, and repair financing",
+        alt: "Grounded Cars car financing — logbook loans, purchase financing, import financing, and repair financing",
       }}
       intro="Found the right car but need financing to close the deal? We connect you with trusted lending partners for asset and logbook financing, matched to your budget and repayment ability."
       benefits={[

@@ -24,7 +24,7 @@ export default async function CarTrackingPage() {
       serviceName="Car Tracking"
       heroImage={{
         src: "/images/services/car-tracking-hero.jpg",
-        alt: "Car Marketplace GPS tracking — secure your car, always in sight. Real-time monitoring, theft protection, and peaceful ownership.",
+        alt: "Grounded Cars GPS tracking — secure your car, always in sight. Real-time monitoring, theft protection, and peaceful ownership.",
       }}
       intro="Protect your vehicle and stay informed with a professionally installed GPS tracker — know where it is, get alerted if it moves somewhere it shouldn't, and keep an eye on how it's being driven."
       benefits={[

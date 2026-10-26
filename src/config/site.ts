@@ -8,22 +8,28 @@ export const siteConfig = {
   // THE official brand/site name. Every title suffix, footer line, Open Graph
   // site name and structured-data name on the site comes from this one value,
   // so Google sees exactly one consistent name for the site.
-  name: "Car Marketplace",
+  name: "Grounded Cars",
   // A second form of the name people genuinely use and search for. Declared
   // only as the WebSite's alternateName (see lib/structured-data.ts) — it is
   // deliberately never used as a title suffix or brand name, so it can't
   // compete with `name`.
-  alternateName: "Car Marketplace Kenya",
+  alternateName: "Grounded Cars Kenya",
   description:
-    "Car Marketplace is a Kenyan online marketplace for buying and selling quality used cars, locally used vehicles and fresh imports.",
+    "Grounded Cars is a Kenyan online marketplace for buying and selling quality used cars, locally used vehicles and fresh imports.",
   // The homepage <title> (also the fallback title for any page without its
   // own): brand first, then what the site is.
-  homeTitle: "Car Marketplace | Buy & Sell Cars in Kenya",
+  homeTitle: "Grounded Cars | Buy & Sell Cars in Kenya",
+  // TODO(grounded-cars): PLACEHOLDER — this is still Car Marketplace's real
+  // phone number, carried over only so the many tel:/wa.me links across the
+  // site (footer, utility bar, service pages, WhatsAppButton, email
+  // footers, structured data — none of them guard against an empty value)
+  // don't render broken. Replace with Grounded Cars' own number before
+  // anything here goes live; do not leave this value in production.
   contactPhone: "+254719838935",
   // wa.me requires international format with no "+", spaces, or leading 0 —
   // derived here so the two numbers can never drift out of sync.
   whatsappNumber: "254719838935",
-  // Official Car Marketplace social profile URLs, if/when they exist. Each one
+  // Official Grounded Cars social profile URLs, if/when they exist. Each one
   // is emitted as a `sameAs` link in the Organization structured data (which
   // is how Google connects a website to its official profiles). Empty on
   // purpose: none are published anywhere on the site today, and inventing or
@@ -45,6 +51,6 @@ export const siteConfig = {
     url: "/brand/og-image.png",
     width: 1200,
     height: 630,
-    alt: "Car Marketplace logo",
+    alt: "Grounded Cars logo",
   },
 } as const;

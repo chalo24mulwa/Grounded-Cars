@@ -6,7 +6,7 @@ import { siteConfig } from "@/config/site";
 export const metadata = {
   title: "Car Insurance Cover",
   description:
-    "Car Marketplace has partnered with reliable insurance companies to help you get Third-Party, Commercial, and Comprehensive motor insurance — plans from as low as KES 1,000.",
+    "Grounded Cars has partnered with reliable insurance companies to help you get Third-Party, Commercial, and Comprehensive motor insurance — plans from as low as KES 1,000.",
   alternates: { canonical: "/services/car-insurance" },
 };
 
@@ -41,7 +41,7 @@ export default async function CarInsurancePage() {
         </span>
         <h1 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">Car Insurance Cover</h1>
         <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
-          Car Marketplace has partnered with reliable insurance companies to help you obtain
+          Grounded Cars has partnered with reliable insurance companies to help you obtain
           Third-Party, Commercial, and Comprehensive motor insurance policies — with plans starting
           from as low as KES 1,000.
         </p>
@@ -74,7 +74,7 @@ export default async function CarInsurancePage() {
 
       <div className="mt-16 rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Why insure through Car Marketplace
+          Why insure through Grounded Cars
         </h2>
         <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {BENEFITS.map((benefit) => (

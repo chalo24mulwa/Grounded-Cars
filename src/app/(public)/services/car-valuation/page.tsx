@@ -24,7 +24,7 @@ export default async function CarValuationPage() {
       serviceName="Car Valuation"
       heroImage={{
         src: "/images/services/car-valuation-hero.jpg",
-        alt: "Car Marketplace expert valuation services — transparent, fast, reliable. Unlock your car's true value.",
+        alt: "Grounded Cars expert valuation services — transparent, fast, reliable. Unlock your car's true value.",
       }}
       intro="Selling or trading in your car? Get an honest, market-based valuation first — so you can price it competitively and negotiate with confidence, instead of guessing."
       benefits={[

@@ -5,7 +5,7 @@ import { CsrInitiativeCard } from "@/components/csr/CsrInitiativeCard";
 export const metadata = {
   title: "Corporate Social Responsibility",
   description:
-    "Community initiatives from Car Marketplace — outreach, food support, and support for street-connected children across Kenya.",
+    "Community initiatives from Grounded Cars — outreach, food support, and support for street-connected children across Kenya.",
   alternates: { canonical: "/csr" },
 };
 
@@ -22,7 +22,7 @@ export default async function CsrPage() {
       <section className="w-full bg-slate-900">
         <Image
           src="/images/csr/hero.jpg"
-          alt="Together we can make a difference — Car Marketplace CSR: supporting vulnerable groups, feeding street children, community outreach."
+          alt="Together we can make a difference — Grounded Cars CSR: supporting vulnerable groups, feeding street children, community outreach."
           width={1717}
           height={916}
           priority
@@ -37,7 +37,7 @@ export default async function CsrPage() {
             Our Corporate Social Responsibility
           </h1>
           <p className="mx-auto mt-3 max-w-2xl text-slate-600">
-            Beyond buying and selling cars, Car Marketplace supports vulnerable communities across
+            Beyond buying and selling cars, Grounded Cars supports vulnerable communities across
             Kenya — community outreach, food support, and care for homeless and street-connected
             children. Every donation goes directly toward these initiatives.
           </p>

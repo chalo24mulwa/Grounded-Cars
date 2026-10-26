@@ -26,7 +26,7 @@ export function CsrInitiativeCard({ initiative }: { initiative: CardInitiative }
             sizes="(max-width: 768px) 100vw, 33vw"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">Car Marketplace CSR</div>
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">Grounded Cars CSR</div>
         )}
         <span
           className={

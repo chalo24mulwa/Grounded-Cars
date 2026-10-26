@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     default: siteConfig.homeTitle,
     // Every page that doesn't opt out via `title.absolute` (homepage,
     // about-us, the make/location landing pages) ends with the ONE official
-    // brand name — "Car Marketplace", never a variant — so the same name
+    // brand name — siteConfig.name, never a variant — so the same name
     // repeats across every result Google shows for this site.
     template: `%s | ${siteConfig.name}`,
   },
@@ -45,9 +45,11 @@ export const metadata: Metadata = {
   // proves domain ownership for Google Search Console. Public by design
   // (this is literally how the HTML-tag verification method works), so
   // there's nothing sensitive about committing it.
-  verification: {
-    google: "xOG5JJ1Cnrt8X6343_9Firlcae11Cx2c-yX4ueUwWYQ",
-  },
+  // TODO(grounded-cars): the code that was here belonged to Car
+  // Marketplace's own verified Search Console property — it does nothing
+  // for groundedcars.co.ke, so it's removed rather than carried over.
+  // Add Grounded Cars' own verification code once that property is set up
+  // in Search Console (Settings > Ownership verification > HTML tag).
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
