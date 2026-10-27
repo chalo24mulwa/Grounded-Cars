@@ -10,6 +10,7 @@ import {
   getPublicListings,
 } from "@/server/services/listing-service";
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
+import { CLASSIFICATIONS } from "@/server/validation/search-schema";
 import { SoldBanner } from "@/components/ui/SoldBanner";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
 import { ClassificationBadges } from "@/components/ui/ClassificationBadges";
@@ -123,7 +124,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const listing = await getPublicListingBySlug(slug);
-  if (!listing) return generateMakePageMetadata(slug);
+  if (!listing) {
+    const classification = findMatchingClassification(slug);
+    if (classification) return generateClassificationPageMetadata(classification);
+    return generateMakePageMetadata(slug);
+  }
 
   const isSold = listing.status === "SOLD";
   // Built from structured fields (make/model/year/location), not the
@@ -205,6 +210,16 @@ export default async function CarDetailPage({
   // not-found UI correctly but left the HTTP status at 200 instead of
   // 404, which every real crawler/monitoring tool cares about.
   if (!listing) {
+    const classification = findMatchingClassification(slug);
+    if (classification) {
+      return (
+        <ClassificationBrowsePage
+          classification={classification}
+          slug={slug}
+          page={parsePage((await searchParams).page)}
+        />
+      );
+    }
     const make = await findMatchingMake(slug);
     if (!make) notFound();
     return <MakeBrowsePage make={make} slug={slug} page={parsePage((await searchParams).page)} />;
@@ -615,6 +630,141 @@ async function MakeBrowsePage({ make, slug, page: requestedPage }: { make: strin
 
       <p className="mt-8 text-sm text-slate-500">
         Looking for a different make?{" "}
+        <Link href="/cars" className="font-medium text-brand hover:underline">
+          Browse all vehicles across Kenya
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Classification landing pages (/cars/grounded, /cars/salvage, /cars/auction,
+// /cars/old-school) — a second sibling of the listing-detail view, sharing
+// this same [slug] route for the same reason the make pages above do. Unlike
+// make pages, the four classification slugs are a fixed, known set (the
+// VehicleClassification enum), not data-driven — so every classification
+// always has a working URL, even with zero matching listings today, the same
+// way /cars itself does. Checked before the make lookup in both call sites
+// above since a real car make will never collide with one of these four
+// fixed words.
+// ----------------------------------------------------------------------------
+
+type Classification = (typeof CLASSIFICATIONS)[number];
+
+const CLASSIFICATION_SLUGS: Record<string, Classification> = {
+  grounded: "GROUNDED",
+  salvage: "SALVAGE",
+  auction: "AUCTION",
+  "old-school": "OLD_SCHOOL",
+};
+
+function findMatchingClassification(param: string): Classification | null {
+  return CLASSIFICATION_SLUGS[decodeURIComponent(param).toLowerCase()] ?? null;
+}
+
+async function generateClassificationPageMetadata(classification: Classification): Promise<Metadata> {
+  const label = CLASSIFICATION_LABELS[classification] ?? classification;
+  const title = `${label} Cars in Kenya | ${siteConfig.name}`;
+  const canonicalUrl = `${APP_URL}/cars/${classificationSlug(classification)}`;
+  return {
+    title: { absolute: title },
+    description: `Browse ${label.toLowerCase()} cars for sale in Kenya on ${siteConfig.name} — connect directly with sellers, or buy a ${label.toLowerCase()} vehicle straight from Grounded Cars.`,
+    alternates: { canonical: canonicalUrl },
+  };
+}
+
+function classificationSlug(classification: string): string {
+  return Object.entries(CLASSIFICATION_SLUGS).find(([, value]) => value === classification)?.[0] ?? classification.toLowerCase();
+}
+
+async function ClassificationBrowsePage({
+  classification,
+  slug,
+  page: requestedPage,
+}: {
+  classification: Classification;
+  slug: string;
+  page: number;
+}) {
+  const session = await auth();
+  const label = CLASSIFICATION_LABELS[classification] ?? classification;
+  const [{ listings, totalCount, page, totalPages }, favoriteIds] = await Promise.all([
+    getPublicListings({ classifications: [classification], page: requestedPage }),
+    session?.user ? getMyFavoriteListingIds() : Promise.resolve(new Set<string>()),
+  ]);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: APP_URL },
+      { "@type": "ListItem", position: 2, name: "Cars", item: `${APP_URL}/cars` },
+      { "@type": "ListItem", position: 3, name: `${label} Cars` },
+    ],
+  };
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger -- static breadcrumb data only
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <nav aria-label="Breadcrumb" className="mb-4 text-sm text-slate-500">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-brand hover:underline">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <Link href="/cars" className="hover:text-brand hover:underline">
+              Cars
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li className="text-slate-700" aria-current="page">
+            {label}
+          </li>
+        </ol>
+      </nav>
+
+      <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{label} Cars in Kenya</h1>
+      <p className="mt-1 text-sm text-slate-600">
+        {totalCount.toLocaleString()} verified {totalCount === 1 ? "listing" : "listings"} right now.
+      </p>
+
+      {listings.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+          <p className="font-medium text-slate-700">No {label.toLowerCase()} vehicles currently listed.</p>
+          <Link href="/cars" className="mt-3 inline-block text-sm font-medium text-brand hover:underline">
+            Browse all vehicles →
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+          {listings.map((listing) => (
+            <CarCard
+              key={listing.id}
+              listing={listing}
+              isFavorited={favoriteIds.has(listing.id)}
+              isAuthenticated={Boolean(session?.user)}
+            />
+          ))}
+        </div>
+      )}
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        buildHref={(p) => (p === 1 ? `/cars/${encodeURIComponent(slug)}` : `/cars/${encodeURIComponent(slug)}?page=${p}`)}
+      />
+
+      <p className="mt-8 text-sm text-slate-500">
+        Looking for a different category?{" "}
         <Link href="/cars" className="font-medium text-brand hover:underline">
           Browse all vehicles across Kenya
         </Link>

@@ -34,12 +34,21 @@ export default async function AdminSeoPage() {
   ]);
 
   const byPrefix = (prefix: string) => sitemapEntries.filter((e) => e.url.startsWith(`${APP_URL}${prefix}`)).length;
+  // The four classification landing pages (/cars/grounded, /cars/salvage,
+  // /cars/auction, /cars/old-school) share the same "/cars/<slug>" shape as
+  // make pages (see cars/[slug]/page.tsx) but are a fixed set, not
+  // data-driven — excluded here so "Make pages" only counts real makes.
+  const CLASSIFICATION_PATHS = ["/cars/grounded", "/cars/salvage", "/cars/auction", "/cars/old-school"];
   const counts = {
     total: sitemapEntries.length,
     listings: listingSlugs.length,
     events: byPrefix("/events/"),
     csr: byPrefix("/csr/"),
-    makes: sitemapEntries.filter((e) => /^\/cars\/[^/]+$/.test(e.url.replace(APP_URL, ""))).length,
+    makes: sitemapEntries.filter((e) => {
+      const path = e.url.replace(APP_URL, "");
+      return /^\/cars\/[^/]+$/.test(path) && !CLASSIFICATION_PATHS.includes(path);
+    }).length,
+    classifications: sitemapEntries.filter((e) => CLASSIFICATION_PATHS.includes(e.url.replace(APP_URL, ""))).length,
     locations: byPrefix("/cars-for-sale/"),
   };
 
@@ -87,6 +96,7 @@ export default async function AdminSeoPage() {
             ["Total URLs", counts.total],
             ["Vehicle listings", counts.listings],
             ["Make pages", counts.makes],
+            ["Classification pages", counts.classifications],
             ["Location pages", counts.locations],
             ["Events", counts.events],
             ["CSR initiatives", counts.csr],
@@ -118,7 +128,7 @@ export default async function AdminSeoPage() {
         <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
           <li>✅ Organization + WebSite JSON-LD — every page (root layout)</li>
           <li>✅ Vehicle + Offer JSON-LD — every listing detail page</li>
-          <li>✅ BreadcrumbList JSON-LD — listing, make, and location pages</li>
+          <li>✅ BreadcrumbList JSON-LD — listing, make, classification, and location pages</li>
           <li>✅ AggregateRating + Review JSON-LD — /reviews</li>
           <li>✅ Canonical URL — homepage, /cars, every listing, make and location page</li>
           <li>✅ Open Graph + Twitter Card — homepage template, every listing detail page</li>

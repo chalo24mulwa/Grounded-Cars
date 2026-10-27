@@ -43,6 +43,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${APP_URL}/about-us`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${APP_URL}/contact`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${APP_URL}/cars`, changeFrequency: "hourly", priority: 0.9 },
+    // Classification landing pages — a fixed set (the VehicleClassification
+    // enum), unlike the make/location entries below, so these are always
+    // included even with zero matching listings today (same as /cars itself).
+    { url: `${APP_URL}/cars/grounded`, changeFrequency: "daily", priority: 0.8 },
+    { url: `${APP_URL}/cars/salvage`, changeFrequency: "daily", priority: 0.8 },
+    { url: `${APP_URL}/cars/auction`, changeFrequency: "daily", priority: 0.8 },
+    { url: `${APP_URL}/cars/old-school`, changeFrequency: "daily", priority: 0.8 },
     { url: `${APP_URL}/best-deals`, changeFrequency: "hourly", priority: 0.7 },
     { url: `${APP_URL}/events`, changeFrequency: "daily", priority: 0.6 },
     { url: `${APP_URL}/csr`, changeFrequency: "weekly", priority: 0.6 },

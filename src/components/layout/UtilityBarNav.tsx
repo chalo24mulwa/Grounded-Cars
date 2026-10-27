@@ -21,12 +21,10 @@ const LINK_CLASS =
   "whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold transition sm:px-3 sm:text-sm";
 
 export function UtilityBarNav({
-  featuredHref,
   contactPhone,
   displayPhone,
   listCarHref,
 }: {
-  featuredHref: string;
   contactPhone: string;
   displayPhone: string;
   // Mobile-only "List Car" shortcut (desktop already has "Sell a Car" in
@@ -43,21 +41,30 @@ export function UtilityBarNav({
   // room in this bar. The full label is used everywhere else — tablet and
   // desktop, page titles, the footer and every other link to these pages.
   const links: { label: string; mobileLabel?: string; href: string; active: boolean }[] = [
-    { label: "Sponsor My Listing", href: featuredHref, active: pathname === "/dashboard/featured" },
-    { label: "Top Cars of the Week", href: "/best-deals", active: pathname === "/best-deals" },
+    { label: "Grounded", href: "/cars/grounded", active: pathname === "/cars/grounded" },
+    { label: "Salvage", href: "/cars/salvage", active: pathname === "/cars/salvage" },
+    { label: "Auction", href: "/cars/auction", active: pathname === "/cars/auction" },
     { label: "Upcoming Events", mobileLabel: "Car Events", href: "/events", active: pathname.startsWith("/events") },
     { label: "Support Our CSR", mobileLabel: "CSR Donors", href: "/csr", active: pathname.startsWith("/csr") },
   ];
 
   return (
-    <div className="mx-auto flex max-w-6xl items-center justify-end gap-1.5 overflow-x-auto px-3 py-1.5 text-[11px] sm:gap-4 sm:px-4 sm:text-sm">
-      {links.map((link) => (
+    <div className="mx-auto flex max-w-6xl items-center gap-1.5 overflow-x-auto px-3 py-1.5 text-[11px] sm:gap-4 sm:px-4 sm:text-sm">
+      {links.map((link, index) => (
         <Link
           key={link.label}
           href={link.href}
           aria-current={link.active ? "page" : undefined}
           className={clsx(
             LINK_CLASS,
+            // Replaces the container's old `justify-end` — that pushes
+            // right-aligned when the row fits, but pushed the overflow off
+            // the unreachable *start* side on a narrow phone (scrollLeft
+            // can't go negative), stranding whichever link happened to be
+            // first in the array. `ml-auto` on just the first link gives
+            // the same right-aligned look whenever everything fits, while
+            // letting the row scroll from a real left edge when it doesn't.
+            index === 0 && "ml-auto",
             link.active ? "bg-brand-accent text-white" : "text-slate-800 hover:bg-black/5"
           )}
         >
