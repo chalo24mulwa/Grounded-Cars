@@ -125,7 +125,7 @@ export default async function HomePage({
             src={HERO_SRC}
             srcSet={HERO_SRCSET}
             sizes="100vw"
-            alt="A car ready for sale outside a dealership showroom at dusk"
+            alt="A yard of grounded, salvage, and damaged vehicles at dusk"
             fetchPriority="high"
             decoding="async"
             className="absolute inset-0 h-full w-full object-cover"
