@@ -30,27 +30,20 @@ export async function SiteHeader() {
           desktop nav pulls itself flush right with its own `md:ml-auto`
           instead (see HeaderNav.tsx). */}
       <div className="mx-auto flex max-w-6xl items-center gap-3 py-2 pl-2 pr-4">
-        {/* /brand/logo-header.svg is a cropped copy of the shared
-            transparent logo (public/brand/logo.svg — still used as-is by
-            the footer) — that source file's own viewBox is a mostly-blank
-            1024×1024 square holding both the icon AND a "Car Marketplace"
-            wordmark baked into the artwork, so displaying it small hid how
-            much dead space surrounded the actual mark. This copy's viewBox
-            is cropped to the icon's real paint bounds only (no wordmark),
-            so at any given size the icon fills its box instead of floating
-            in mostly-empty canvas — see the git history for the bounding-
-            box math. The wordmark text below is a separate DOM element
-            (not part of the cropped image) so its gradient can be styled
+        {/* /brand/logo-header.svg is the Grounded Cars "GC" car/glasses
+            icon only — cropped to its own paint bounds (aspect ~1.88:1),
+            no wordmark baked into the artwork. The wordmark text below is
+            a separate DOM element so its gradient can be styled
             independently — orange→gold→green left to right, matching the
-            reference wordmark's own color sweep. Left padding on this row
-            is deliberately tighter than the right (pl-2 vs pr-4) to pull
-            the mark toward the header's left edge. */}
+            logo's own color sweep. Left padding on this row is
+            deliberately tighter than the right (pl-2 vs pr-4) to pull the
+            mark toward the header's left edge. */}
         <Link href="/" className="flex shrink-0 items-center gap-2" aria-label={siteConfig.name}>
           <Image
             src="/brand/logo-header.svg"
             alt={siteConfig.name}
-            width={50}
-            height={33}
+            width={64}
+            height={34}
             priority
           />
           <span className="bg-gradient-to-r from-brand-accent via-brand-gold to-brand bg-clip-text text-lg font-bold text-transparent">

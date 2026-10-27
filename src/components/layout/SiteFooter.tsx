@@ -23,7 +23,7 @@ export async function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="sm:col-span-2 lg:col-span-1">
           <Link href="/" className="flex items-center gap-2">
-            <Image src={siteConfig.logo.transparent} alt={siteConfig.name} width={32} height={32} />
+            <Image src={siteConfig.logo.transparent} alt={siteConfig.name} width={60} height={32} />
             <span className="text-base font-bold text-white">{siteConfig.name}</span>
           </Link>
           <p className="mt-3 text-sm leading-relaxed text-white/70">{siteConfig.description}</p>
