@@ -270,6 +270,22 @@ export default async function CarDetailPage({
     ...(listing.fuelType ? { fuelType: listing.fuelType } : {}),
     ...(listing.transmission ? { vehicleTransmission: listing.transmission } : {}),
     ...(listing.color ? { color: listing.color } : {}),
+    // Exposed as additionalProperty, not vehicleCondition — schema.org's
+    // vehicleCondition enum (NewCondition/UsedCondition/DamagedCondition/
+    // RefurbishedCondition) doesn't fit all four classifications (an
+    // AUCTION or OLD_SCHOOL vehicle isn't necessarily damaged), so mapping
+    // it there would misrepresent some listings. This way search engines
+    // get the real saved classification without an inaccurate claim either
+    // way, and only for listings that actually have one saved.
+    ...(listing.classifications.length
+      ? {
+          additionalProperty: listing.classifications.map((c) => ({
+            "@type": "PropertyValue",
+            name: "Classification",
+            value: CLASSIFICATION_LABELS[c] ?? c,
+          })),
+        }
+      : {}),
     image: listing.images.map((img) => absoluteUrl(img.imageUrl)),
     offers: {
       "@type": "Offer",

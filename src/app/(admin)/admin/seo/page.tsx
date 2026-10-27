@@ -127,7 +127,7 @@ export default async function AdminSeoPage() {
         </h2>
         <ul className="mt-3 space-y-1.5 text-sm text-slate-700">
           <li>✅ Organization + WebSite JSON-LD — every page (root layout)</li>
-          <li>✅ Vehicle + Offer JSON-LD — every listing detail page</li>
+          <li>✅ Vehicle + Offer JSON-LD — every listing detail page (classification, when saved, via additionalProperty)</li>
           <li>✅ BreadcrumbList JSON-LD — listing, make, classification, and location pages</li>
           <li>✅ AggregateRating + Review JSON-LD — /reviews</li>
           <li>✅ Canonical URL — homepage, /cars, every listing, make and location page</li>

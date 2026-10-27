@@ -17,7 +17,8 @@ import { ActiveFilterChips } from "@/components/listings/ActiveFilterChips";
 // combinations).
 export const metadata = {
   title: "Browse Vehicles",
-  description: "Browse verified cars for sale across Kenya — filter by make, model, price, and location.",
+  description:
+    "Browse verified cars for sale across Kenya — filter by make, model, price, location, and classification (grounded, salvage, auction, old school).",
   alternates: { canonical: "/cars" },
 };
 
