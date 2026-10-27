@@ -588,7 +588,8 @@ function buildListingWhere(
   if (filters.bodyType) where.bodyType = { equals: filters.bodyType, mode: "insensitive" };
   if (filters.location) where.location = { contains: filters.location, mode: "insensitive" };
   if (filters.condition) where.condition = filters.condition;
-  if (filters.importStatus) where.importStatus = filters.importStatus;
+  // A listing matches if it has ANY of the selected classifications.
+  if (filters.classifications?.length) where.classifications = { hasSome: filters.classifications };
   if (filters.category) where.category = filters.category;
 
   return where;
@@ -794,7 +795,8 @@ function matchesFilters(listing: CatalogListing, filters: Partial<ListingSearchP
   if (filters.location && (listing.location == null || !listing.location.toLowerCase().includes(filters.location.toLowerCase())))
     return false;
   if (filters.condition && listing.condition !== filters.condition) return false;
-  if (filters.importStatus && listing.importStatus !== filters.importStatus) return false;
+  if (filters.classifications?.length && !filters.classifications.some((c) => listing.classifications?.includes(c)))
+    return false;
   if (filters.category && listing.category !== filters.category) return false;
   return true;
 }

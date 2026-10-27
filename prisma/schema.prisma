@@ -85,6 +85,17 @@ enum ImportStatus {
   FRESH_IMPORT
 }
 
+// The seller-declared vehicle classification — replaces ImportStatus as the
+// form's mandatory field. Unlike ImportStatus, a listing can hold more than
+// one (e.g. Grounded + Salvage), hence the array field on CarListing rather
+// than a single enum column.
+enum VehicleClassification {
+  GROUNDED
+  SALVAGE
+  AUCTION
+  OLD_SCHOOL
+}
+
 // Header "Find a Car" dropdown filter + the listing form's mandatory
 // category select — a coarse vehicle class, distinct from the free-text
 // `bodyType` field (which stays whatever a seller types, e.g. "Sedan").
@@ -261,10 +272,21 @@ model CarListing {
   description  String?               @db.Text
   condition    ListingConditionType?
 
-  // Mandatory — every listing must declare exactly one. No default: the
-  // seller must actively choose (createListingSchema requires it), same
-  // "no silent fallback" contract as title/make/model.
-  importStatus ImportStatus
+  // No longer collected on the create/edit form (superseded by
+  // `classifications` below) — made optional rather than dropped so
+  // existing rows keep their original Locally Used / Fresh Import value
+  // for data integrity. Never written by new listings.
+  importStatus ImportStatus?
+
+  // Grounded/Salvage/Auction/Old School — replaces importStatus as the
+  // form's mandatory classification field. A real Postgres array (not a
+  // join table): a listing can hold 1-4 values, and `hasSome` is all
+  // filtering ever needs. @default([]) backfills pre-existing rows with no
+  // classification rather than guessing one — there is no defensible
+  // mapping from "Locally Used"/"Fresh Import" to this unrelated taxonomy,
+  // so legacy listings simply show no classification badge until a seller
+  // or admin edits them and picks one.
+  classifications VehicleClassification[] @default([])
 
   // Mandatory, unlike importStatus — DOES carry a @default so the migration
   // can backfill pre-existing rows (createListingSchema still requires an

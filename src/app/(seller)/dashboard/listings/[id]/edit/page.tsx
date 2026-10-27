@@ -94,7 +94,7 @@ export default async function EditListingPage({
             location: listing.location,
             description: listing.description,
             condition: listing.condition,
-            importStatus: listing.importStatus,
+            classifications: listing.classifications,
             category: listing.category,
           }}
         />

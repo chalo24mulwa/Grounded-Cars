@@ -14,21 +14,21 @@ export const siteConfig = {
   // deliberately never used as a title suffix or brand name, so it can't
   // compete with `name`.
   alternateName: "Grounded Cars Kenya",
+  // Kept to one, re-usable sentence rather than duplicated verbatim on every
+  // page — per-page metadata below adapts it to that page's own content
+  // instead of repeating it, so Google doesn't see the same description
+  // twice. Reflects the two sides of the business (free buyer/seller
+  // marketplace + Grounded Cars' own salvage buying/selling) without
+  // promising every listing is free or owned by Grounded Cars.
   description:
-    "Grounded Cars is a Kenyan online marketplace for buying and selling quality used cars, locally used vehicles and fresh imports.",
+    "Grounded Cars is a Kenyan marketplace for grounded, salvage, auction and old-school vehicles. List your car free, connect directly with sellers, or sell your salvage car to us.",
   // The homepage <title> (also the fallback title for any page without its
   // own): brand first, then what the site is.
-  homeTitle: "Grounded Cars | Buy & Sell Cars in Kenya",
-  // TODO(grounded-cars): PLACEHOLDER — this is still Car Marketplace's real
-  // phone number, carried over only so the many tel:/wa.me links across the
-  // site (footer, utility bar, service pages, WhatsAppButton, email
-  // footers, structured data — none of them guard against an empty value)
-  // don't render broken. Replace with Grounded Cars' own number before
-  // anything here goes live; do not leave this value in production.
-  contactPhone: "+254719838935",
+  homeTitle: "Grounded Cars Kenya | Salvage, Auction & Old School Cars",
+  contactPhone: "+254727919076",
   // wa.me requires international format with no "+", spaces, or leading 0 —
   // derived here so the two numbers can never drift out of sync.
-  whatsappNumber: "254719838935",
+  whatsappNumber: "254727919076",
   // Official Grounded Cars social profile URLs, if/when they exist. Each one
   // is emitted as a `sameAs` link in the Organization structured data (which
   // is how Google connects a website to its official profiles). Empty on

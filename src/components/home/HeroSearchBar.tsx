@@ -10,10 +10,11 @@ const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide tex
 
 type MakeModelIndex = { make: string; models: string[] }[];
 
-const IMPORT_STATUS_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "LOCALLY_USED", label: "Locally Used" },
-  { value: "FRESH_IMPORT", label: "Fresh Import" },
+const CLASSIFICATION_OPTIONS = [
+  { value: "GROUNDED", label: "Grounded" },
+  { value: "SALVAGE", label: "Salvage" },
+  { value: "AUCTION", label: "Auction" },
+  { value: "OLD_SCHOOL", label: "Old School" },
 ] as const;
 
 // The homepage hero's search card — same real-navigation pattern as
@@ -45,9 +46,12 @@ export function HeroSearchBar({ makeModelIndex }: { makeModelIndex: MakeModelInd
     const formData = new FormData(e.currentTarget);
     const params = new URLSearchParams();
 
+    // .append (not .set) — a checkbox group like `classifications` submits
+    // multiple entries under the same name, and .set would silently drop
+    // every value but the last one checked.
     for (const [key, value] of formData.entries()) {
       const trimmed = String(value).trim();
-      if (trimmed) params.set(key, trimmed);
+      if (trimmed) params.append(key, trimmed);
     }
 
     router.push(`/cars?${params.toString()}`);
@@ -193,18 +197,17 @@ export function HeroSearchBar({ makeModelIndex }: { makeModelIndex: MakeModelInd
             </div>
 
             <div className="col-span-2 sm:col-span-2">
-              <span className={labelClass}>Import Status</span>
+              <span className={labelClass}>Classification</span>
               <div className="flex flex-wrap gap-2">
-                {IMPORT_STATUS_OPTIONS.map((option) => (
+                {CLASSIFICATION_OPTIONS.map((option) => (
                   <label
                     key={option.value}
                     className="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:text-brand"
                   >
                     <input
-                      type="radio"
-                      name="importStatus"
+                      type="checkbox"
+                      name="classifications"
                       value={option.value}
-                      defaultChecked={option.value === ""}
                       className="h-3.5 w-3.5 accent-brand"
                     />
                     {option.label}

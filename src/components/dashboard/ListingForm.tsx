@@ -41,7 +41,7 @@ type ListingDefaults = {
   location?: string | null;
   description?: string | null;
   condition?: string | null;
-  importStatus?: string | null;
+  classifications?: string[] | null;
   category?: string | null;
 };
 
@@ -54,6 +54,13 @@ type StagedPhoto = {
   status: "uploading" | "ready" | "failed";
   token?: string;
 };
+
+const CLASSIFICATION_OPTIONS = [
+  { value: "GROUNDED", label: "Grounded" },
+  { value: "SALVAGE", label: "Salvage" },
+  { value: "AUCTION", label: "Auction" },
+  { value: "OLD_SCHOOL", label: "Old School" },
+];
 
 const CATEGORY_OPTIONS = [
   { value: "CARS", label: "Cars" },
@@ -501,26 +508,23 @@ export function ListingForm({
           </div>
           <fieldset className="sm:col-span-2">
             <legend className={labelClass}>
-              Import status <span className="text-red-500">*</span>
+              Classification <span className="text-red-500">*</span>
             </legend>
             <p className="mt-0.5 text-xs text-slate-500">
-              Required — this shows as a tag on the listing so buyers know at a glance.
+              Select at least one — shown as tags on the listing so buyers know at a glance. You can select more
+              than one (e.g. Grounded + Salvage).
             </p>
-            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {[
-                { value: "LOCALLY_USED", label: "Locally Used" },
-                { value: "FRESH_IMPORT", label: "Fresh Import" },
-              ].map((option) => (
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {CLASSIFICATION_OPTIONS.map((option) => (
                 <label
                   key={option.value}
                   className="flex cursor-pointer items-center gap-2.5 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-700 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:text-brand"
                 >
                   <input
-                    type="radio"
-                    name="importStatus"
+                    type="checkbox"
+                    name="classifications"
                     value={option.value}
-                    required
-                    defaultChecked={defaults?.importStatus === option.value}
+                    defaultChecked={defaults?.classifications?.includes(option.value) ?? false}
                     className="h-4 w-4 accent-brand"
                   />
                   {option.label}

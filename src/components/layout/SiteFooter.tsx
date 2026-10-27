@@ -137,6 +137,16 @@ export async function SiteFooter() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-brand-gold">Contact</h2>
           <ul className="mt-3 space-y-2 text-sm">
             <li>
+              <Link href="/about-us" className="transition hover:text-white">
+                About Us
+              </Link>
+            </li>
+            <li>
+              <Link href="/contact" className="transition hover:text-white">
+                Contact Us
+              </Link>
+            </li>
+            <li>
               <a href={`tel:${siteConfig.contactPhone}`} className="transition hover:text-white">
                 {siteConfig.contactPhone}
               </a>

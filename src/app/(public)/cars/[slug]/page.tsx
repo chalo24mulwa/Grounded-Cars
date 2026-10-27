@@ -12,7 +12,7 @@ import {
 import { getMyFavoriteListingIds } from "@/server/services/favorite-service";
 import { SoldBanner } from "@/components/ui/SoldBanner";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
-import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
+import { ClassificationBadges } from "@/components/ui/ClassificationBadges";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
 import { Pagination } from "@/components/listings/Pagination";
 import { ShareButton } from "@/components/share/ShareButton";
@@ -67,6 +67,19 @@ function labelFor(value: string): string {
 // Weaves in mileage/transmission/fuel type when present (spec: descriptions
 // should surface real spec data, not just price) without keyword-stuffing —
 // each fact appears once, only when the listing actually has it.
+// Only used when the listing actually has one or more classifications
+// saved — never fabricated for a legacy row with an empty array (see
+// schema.prisma's comment on CarListing.classifications).
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  GROUNDED: "Grounded",
+  SALVAGE: "Salvage",
+  AUCTION: "Auction",
+  OLD_SCHOOL: "Old School",
+};
+function classificationText(classifications: string[]): string {
+  return classifications.map((c) => CLASSIFICATION_LABELS[c] ?? c).join(" & ");
+}
+
 function buildDescription(listing: {
   year: number;
   make: string;
@@ -78,9 +91,11 @@ function buildDescription(listing: {
   mileage: number | null;
   transmission: string | null;
   fuelType: string | null;
+  classifications: string[];
 }, isSold: boolean): string {
   const priceText = `${listing.currency} ${Number(listing.price).toLocaleString()}`;
   const locationText = listing.location ? ` in ${listing.location}` : "";
+  const classText = listing.classifications.length ? ` ${classificationText(listing.classifications)}` : "";
 
   if (isSold) {
     // Deliberately does not say "for sale" / "available now" — a sold
@@ -95,7 +110,7 @@ function buildDescription(listing: {
   if (listing.fuelType) specParts.push(labelFor(listing.fuelType));
   const specText = specParts.length ? ` ${specParts.join(", ")}.` : "";
 
-  const base = `${listing.year} ${listing.make} ${listing.model} for sale${locationText} — ${priceText}.${specText}`;
+  const base = `${listing.year} ${listing.make} ${listing.model}${classText} for sale${locationText} — ${priceText}.${specText}`;
   const detail = listing.description?.trim();
   const combined = detail ? `${base} ${detail}` : `${base} View photos, specs, and contact the seller on ${siteConfig.name}.`;
   return combined.length > 160 ? `${combined.slice(0, 157)}...` : combined;
@@ -118,9 +133,12 @@ export async function generateMetadata({
   // Marketplace" — the "| Car Marketplace" suffix comes from the root
   // layout's own title template, not repeated here). The on-page
   // H1 is unaffected — it still shows the seller's own title as-is.
+  // Only the classification the seller actually saved is ever used here —
+  // never guessed from the title/description text.
+  const classSuffix = listing.classifications.length ? ` ${classificationText(listing.classifications)}` : "";
   const title = isSold
     ? `${listing.year} ${listing.make} ${listing.model} — Sold`
-    : `${listing.make} ${listing.model} ${listing.year} for Sale${listing.location ? ` in ${listing.location}` : " in Kenya"}`;
+    : `${listing.year} ${listing.make} ${listing.model}${classSuffix} for Sale${listing.location ? ` in ${listing.location}` : " in Kenya"}`;
   const description = buildDescription(listing, isSold);
   const canonicalUrl = `${APP_URL}/cars/${listing.slug}`;
   const primaryImage = listing.images.find((img) => img.isPrimary) ?? listing.images[0];
@@ -311,7 +329,7 @@ export default async function CarDetailPage({
         images={galleryImages}
         title={listing.title}
         isSold={isSold}
-        overlay={<ImportStatusBadge status={listing.importStatus} />}
+        overlay={<ClassificationBadges classifications={listing.classifications} />}
       />
 
       <div className="mt-6">
@@ -348,7 +366,7 @@ export default async function CarDetailPage({
           {listing.year} · {listing.make} {listing.model}
         </p>
         <div className="mt-2">
-          <ImportStatusBadge status={listing.importStatus} corner={false} />
+          <ClassificationBadges classifications={listing.classifications} corner={false} />
         </div>
         <p className="mt-2 text-2xl font-bold text-brand">
           {listing.currency} {Number(listing.price).toLocaleString()}

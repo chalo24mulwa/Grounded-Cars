@@ -30,7 +30,9 @@ export function parseListingFields(fields: Record<string, unknown>) {
     location: str("location"),
     description: str("description"),
     condition: str("condition"),
-    importStatus: str("importStatus"),
+    classifications: Array.isArray(fields["classifications"])
+      ? (fields["classifications"] as unknown[]).map(String)
+      : undefined,
     category: str("category"),
   };
 }

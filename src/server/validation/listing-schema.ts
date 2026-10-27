@@ -36,12 +36,15 @@ export const createListingSchema = z.object({
   location: z.string().max(120).optional(),
   description: z.string().max(5000).optional(),
   condition: z.enum(["BRAND_NEW", "FOREIGN_USED", "LOCALLY_USED"]).optional(),
-  // Mandatory — every listing declares exactly one (not `.optional()`,
-  // unlike `condition` above). Distinct field from `condition`: this is
-  // "how was it brought into the country," not "how new/used it looks."
-  importStatus: z.enum(["LOCALLY_USED", "FRESH_IMPORT"], {
-    errorMap: () => ({ message: "Select whether this car is Locally Used or a Fresh Import." }),
-  }),
+  // Mandatory — every listing declares at least one, and may declare up to
+  // all four (e.g. a car can be both Grounded and Salvage). Replaces the
+  // old single-select importStatus field; that column still exists for
+  // legacy rows but is never written by this schema anymore.
+  classifications: z
+    .array(z.enum(["GROUNDED", "SALVAGE", "AUCTION", "OLD_SCHOOL"]))
+    .min(1, "Select at least one classification.")
+    .max(4)
+    .refine((arr) => new Set(arr).size === arr.length, "Duplicate classifications aren't allowed."),
   // Mandatory, like importStatus above — backs the header's "Find a Car"
   // category dropdown and getRelatedListings()'s matching (see
   // listing-service.ts). Distinct from the free-text `bodyType` field.

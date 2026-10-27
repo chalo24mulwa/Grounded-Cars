@@ -26,7 +26,8 @@ export type ListingSort = (typeof LISTING_SORTS)[number];
 const TRANSMISSIONS = ["MANUAL", "AUTOMATIC", "CVT", "SEMI_AUTOMATIC"] as const;
 const FUEL_TYPES = ["PETROL", "DIESEL", "HYBRID", "ELECTRIC", "LPG"] as const;
 const CONDITIONS = ["BRAND_NEW", "FOREIGN_USED", "LOCALLY_USED"] as const;
-const IMPORT_STATUSES = ["LOCALLY_USED", "FRESH_IMPORT"] as const;
+// Kept in sync by hand with the Prisma `VehicleClassification` enum.
+export const CLASSIFICATIONS = ["GROUNDED", "SALVAGE", "AUCTION", "OLD_SCHOOL"] as const;
 // Kept in sync by hand with the Prisma `VehicleCategory` enum (schema.prisma)
 // — same "small fixed set, no DB round trip needed to validate" reasoning
 // as the other enum arrays above.
@@ -53,7 +54,9 @@ export type ListingSearchParams = {
   bodyType?: string;
   location?: string;
   condition?: (typeof CONDITIONS)[number];
-  importStatus?: (typeof IMPORT_STATUSES)[number];
+  // A listing matches if it has ANY of the selected classifications (an
+  // OR, not an AND) — see buildListingWhere's `hasSome` filter.
+  classifications?: (typeof CLASSIFICATIONS)[number][];
   category?: (typeof VEHICLE_CATEGORIES)[number];
   sort: ListingSort;
   page: number;
@@ -74,6 +77,20 @@ function parseEnum<T extends readonly string[]>(
 ): T[number] | undefined {
   const value = first(raw);
   return value && (allowed as readonly string[]).includes(value) ? (value as T[number]) : undefined;
+}
+
+// Repeated ?classifications=GROUNDED&classifications=SALVAGE query params
+// arrive here as a string[] already; a single occurrence arrives as a plain
+// string. Either way, every value is independently checked against the
+// allowed list — one bad value never discards the valid ones alongside it.
+function parseEnumArray<T extends readonly string[]>(
+  raw: string | string[] | undefined,
+  allowed: T
+): T[number][] | undefined {
+  if (raw === undefined) return undefined;
+  const values = Array.isArray(raw) ? raw : [raw];
+  const valid = [...new Set(values.filter((v): v is T[number] => (allowed as readonly string[]).includes(v)))];
+  return valid.length > 0 ? valid : undefined;
 }
 
 /** Parses Next.js's raw searchParams object into a safe filter set. Every
@@ -105,7 +122,7 @@ export function parseListingSearchParams(
     bodyType: parseText(raw.bodyType),
     location: parseText(raw.location),
     condition: parseEnum(raw.condition, CONDITIONS),
-    importStatus: parseEnum(raw.importStatus, IMPORT_STATUSES),
+    classifications: parseEnumArray(raw.classifications, CLASSIFICATIONS),
     category: parseEnum(raw.category, VEHICLE_CATEGORIES),
     sort: parseEnum(raw.sort, LISTING_SORTS) ?? "featured",
     page: pageResult.success ? pageResult.data : 1,

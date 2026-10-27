@@ -69,6 +69,9 @@ function parseListingFormData(formData: FormData) {
     const n = Number(v);
     return Number.isNaN(n) ? undefined : n;
   };
+  // Checkbox groups share one `name` — FormData.getAll collects every
+  // checked value under that key (empty array when none are checked).
+  const arr = (key: string): string[] => formData.getAll(key).map(String);
 
   return {
     title: str("title") ?? "",
@@ -86,7 +89,7 @@ function parseListingFormData(formData: FormData) {
     location: str("location"),
     description: str("description"),
     condition: str("condition"),
-    importStatus: str("importStatus"),
+    classifications: arr("classifications"),
     category: str("category"),
   };
 }

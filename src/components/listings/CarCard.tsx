@@ -2,7 +2,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { SoldRibbon } from "@/components/ui/SoldRibbon";
 import { FeaturedBadge } from "@/components/ui/FeaturedBadge";
-import { ImportStatusBadge } from "@/components/ui/ImportStatusBadge";
+import { ClassificationBadges } from "@/components/ui/ClassificationBadges";
 import { FavoriteButton } from "@/components/listings/FavoriteButton";
 import { CarCardImageCarousel } from "@/components/listings/CarCardImageCarousel";
 import { CardLinkPending } from "@/components/listings/CardLinkPending";
@@ -22,7 +22,7 @@ type CarCardProps = {
     | "currency"
     | "status"
     | "location"
-    | "importStatus"
+    | "classifications"
   > & {
     images: Pick<CarImage, "imageUrl" | "altText">[];
     // Computed live by the caller (getPublicListings) from
@@ -52,7 +52,7 @@ export function CarCard({ listing, isFavorited = false, isAuthenticated = false,
       <CarCardImageCarousel images={listing.images} title={listing.title} isSold={isSold} priority={priority}>
         {isSold && <SoldRibbon />}
         {!isSold && listing.isFeatured && <FeaturedBadge />}
-        <ImportStatusBadge status={listing.importStatus} />
+        <ClassificationBadges classifications={listing.classifications} />
         <div className="absolute bottom-2 right-2 z-10 max-sm:bottom-1.5 max-sm:right-1.5 max-sm:[&>button]:h-7 max-sm:[&>button]:w-7">
           <FavoriteButton
             listingId={listing.id}

@@ -10,6 +10,13 @@ const labelClass = "block text-xs font-medium text-slate-600";
 
 type MakeModelIndex = { make: string; models: string[] }[];
 
+const CLASSIFICATION_OPTIONS = [
+  { value: "GROUNDED", label: "Grounded" },
+  { value: "SALVAGE", label: "Salvage" },
+  { value: "AUCTION", label: "Auction" },
+  { value: "OLD_SCHOOL", label: "Old School" },
+];
+
 // Filters are plain, real URL navigation (router.push to /cars?...) rather
 // than a client-side data filter — every submission is a real server
 // request that re-runs getPublicListings() with the new params, which is
@@ -41,9 +48,12 @@ export function SearchFilterSidebar({
     const formData = new FormData(e.currentTarget);
     const params = new URLSearchParams();
 
+    // .append (not .set) — the classifications checkbox group submits
+    // multiple entries under the same name, and .set would silently drop
+    // every value but the last one checked.
     for (const [key, value] of formData.entries()) {
       const trimmed = String(value).trim();
-      if (trimmed) params.set(key, trimmed);
+      if (trimmed) params.append(key, trimmed);
     }
     // Any filter change starts back at page 1 — a stale page number from
     // the previous filter set could point past the end of the new result
@@ -252,6 +262,27 @@ export function SearchFilterSidebar({
           <option value="LOCALLY_USED">Locally used</option>
         </select>
       </div>
+
+      <fieldset>
+        <legend className={labelClass}>Classification</legend>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {CLASSIFICATION_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 has-[:checked]:border-brand has-[:checked]:bg-brand/5 has-[:checked]:text-brand"
+            >
+              <input
+                type="checkbox"
+                name="classifications"
+                value={option.value}
+                defaultChecked={current.classifications?.some((c) => c === option.value) ?? false}
+                className="h-3.5 w-3.5 accent-brand"
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div>
         <label htmlFor="category" className={labelClass}>

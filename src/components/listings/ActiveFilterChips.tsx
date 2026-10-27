@@ -16,8 +16,15 @@ const LABELS: Partial<Record<keyof ListingSearchParams, string>> = {
   bodyType: "Body type",
   location: "Location",
   condition: "Condition",
-  importStatus: "Import status",
+  classifications: "Classification",
   category: "Category",
+};
+
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  GROUNDED: "Grounded",
+  SALVAGE: "Salvage",
+  AUCTION: "Auction",
+  OLD_SCHOOL: "Old School",
 };
 
 const CHIP_KEYS = Object.keys(LABELS) as (keyof ListingSearchParams)[];
@@ -36,8 +43,22 @@ export function ActiveFilterChips({
   // Deals) without changing its default /cars behavior.
   basePath?: string;
 }) {
-  const active = CHIP_KEYS.filter((key) => current[key] != null && current[key] !== "");
+  // An empty array (the default when nothing is checked) must not count as
+  // an active filter, unlike every other field here which is only ever
+  // present when it has a real value.
+  const active = CHIP_KEYS.filter((key) => {
+    const value = current[key];
+    return Array.isArray(value) ? value.length > 0 : value != null && value !== "";
+  });
   if (active.length === 0) return null;
+
+  function chipValue(key: keyof ListingSearchParams): string {
+    const value = current[key];
+    if (key === "classifications" && Array.isArray(value)) {
+      return value.map((v) => CLASSIFICATION_LABELS[v] ?? v).join(", ");
+    }
+    return String(value);
+  }
 
   return (
     <div className="mb-4 flex flex-wrap gap-2">
@@ -47,7 +68,7 @@ export function ActiveFilterChips({
           href={buildHrefWithout(key)}
           className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
         >
-          {LABELS[key]}: {String(current[key])}
+          {LABELS[key]}: {chipValue(key)}
           <span aria-hidden="true">×</span>
         </Link>
       ))}

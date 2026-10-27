@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: { absolute: "About Grounded Cars | Buy & Sell Cars Online in Kenya" },
   description:
-    "Grounded Cars is a fast-growing Kenyan online car marketplace where dealers and car owners can list vehicles for free and connect with targeted buyers. Find, buy and sell cars across Kenya while supporting community initiatives.",
+    "Grounded Cars is a Kenyan marketplace for grounded, salvage, auction and old-school vehicles, where dealers and car owners list for free and connect directly with buyers. Grounded Cars also buys and sells grounded and salvage vehicles.",
   alternates: { canonical: "/about-us" },
 };
 
@@ -76,6 +76,13 @@ export default function AboutUsPage() {
               Whether you&apos;re selling your first car, operating a dealership, looking for a
               reliable locally used vehicle, or searching for a fresh import, Grounded Cars is
               designed to bring buyers and sellers closer together.
+            </p>
+            <p>
+              Grounded Cars also specializes in grounded, salvage, auction, and old-school vehicles —
+              sellers can tag their listings with any combination of these classifications, and
+              buyers can search specifically for them. Beyond the marketplace, Grounded Cars buys
+              and sells grounded and salvage vehicles directly; not every vehicle listed on the
+              marketplace is owned or sold by Grounded Cars itself.
             </p>
           </div>
 

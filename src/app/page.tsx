@@ -145,11 +145,12 @@ export default async function HomePage({
               {siteConfig.alternateName}
             </span>
             <span className="mt-4 block text-3xl font-bold text-white sm:text-4xl md:text-5xl">
-              Find your next car, or sell the one you have
+              Grounded, salvage, auction &amp; old-school cars — bought, sold, and listed free
             </span>
           </h1>
           <p className="mt-3 max-w-lg text-sm text-white/80 sm:text-base">
-            Verified listings, trusted sellers, and dealership-grade services — all in one place.
+            Connect directly with sellers across Kenya and list your vehicle for free, or sell your grounded or
+            salvage car straight to us.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
