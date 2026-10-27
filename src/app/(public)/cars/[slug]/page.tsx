@@ -134,8 +134,8 @@ export async function generateMetadata({
   // Built from structured fields (make/model/year/location), not the
   // seller's own free-text `listing.title` — keeps every listing's <title>
   // in a consistent, predictable, keyword-relevant pattern search engines
-  // can rely on ("Toyota Harrier 2018 for Sale in Nairobi | Car
-  // Marketplace" — the "| Car Marketplace" suffix comes from the root
+  // can rely on ("Toyota Harrier 2018 for Sale in Nairobi | Grounded
+  // Cars" — the "| Grounded Cars" suffix comes from the root
   // layout's own title template, not repeated here). The on-page
   // H1 is unaffected — it still shows the seller's own title as-is.
   // Only the classification the seller actually saved is ever used here —

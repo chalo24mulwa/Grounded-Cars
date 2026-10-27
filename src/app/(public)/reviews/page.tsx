@@ -7,7 +7,7 @@ import { StarRating } from "@/components/reviews/StarRating";
 export const metadata: Metadata = {
   title: "Customer Reviews",
   description:
-    "Read genuine reviews from Kenyan car buyers and sellers who have used Car Marketplace to list, find, buy and sell vehicles across Kenya.",
+    "Read genuine reviews from Kenyan car buyers and sellers who have used Grounded Cars to list, find, buy and sell vehicles across Kenya.",
   alternates: { canonical: "/reviews" },
 };
 
@@ -37,7 +37,7 @@ export default function ReviewsPage() {
             Trusted by Buyers and Sellers Across Kenya
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">
-            Real experiences from Car Marketplace customers who have bought, sold, and financed
+            Real experiences from Grounded Cars customers who have bought, sold, and financed
             vehicles through our platform.
           </p>
 

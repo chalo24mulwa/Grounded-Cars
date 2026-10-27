@@ -15,17 +15,17 @@ import type { Metadata } from "next";
 const HERO_SECONDARY_BUTTON_CLASS =
   "rounded-md bg-white/10 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 backdrop-blur-sm transition hover:bg-white/20";
 
-// `title.absolute` opts out of the root layout's `template: "%s | Car
-// Marketplace"` (see layout.tsx) — the homepage's title starts with the brand
-// ("Car Marketplace | Buy & Sell Cars in Kenya"), never "Home | Car
-// Marketplace". The Open Graph and Twitter blocks are declared here in full
-// (a page's `openGraph` replaces the layout's rather than merging with it).
+// `title.absolute` opts out of the root layout's `template: "%s | Grounded
+// Cars"` (see layout.tsx) — the homepage's own title (siteConfig.homeTitle)
+// starts with the brand already, never "Home | Grounded Cars". The Open
+// Graph and Twitter blocks are declared here in full (a page's `openGraph`
+// replaces the layout's rather than merging with it).
 const HOME_URL = `${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "")}/`;
 
 // NOTE: no `alternates.canonical` and no `openGraph.url` here on purpose. Next's
 // metadata API always prints the root URL without its trailing slash
-// ("https://carmarketplace.co.ke"); the two are the same URL, but the intended
-// canonical is the explicit "https://carmarketplace.co.ke/", so those two tags
+// ("https://groundedcars.co.ke"); the two are the same URL, but the intended
+// canonical is the explicit "https://groundedcars.co.ke/", so those two tags
 // are rendered by hand in the page below — each exactly once, and nowhere else.
 export const metadata: Metadata = {
   title: { absolute: siteConfig.homeTitle },
@@ -138,8 +138,9 @@ export default async function HomePage({
           {/* The page's one H1 states the brand in plain, visible text: the
               site name leads (in the same eyebrow styling this line always
               had) and the existing headline follows, so search engines read
-              "Car Marketplace Kenya — Find your next car, or sell the one you
-              have" as the page's main heading. */}
+              "Grounded Cars Kenya — Grounded, salvage, auction & old-school
+              cars — bought, sold, and listed free" as the page's main
+              heading. */}
           <h1 className="max-w-xl">
             <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-base font-semibold uppercase tracking-wide text-white sm:text-lg">
               {siteConfig.alternateName}

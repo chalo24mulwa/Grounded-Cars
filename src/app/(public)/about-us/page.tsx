@@ -2,8 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 // The About page is where the brand is explained, so its title leads with the
-// name ("About Car Marketplace | ..."). Using the plain `title` string would
-// run through the root layout's `template: "%s | Car Marketplace"` and repeat
+// name ("About Grounded Cars | ..."). Using the plain `title` string would
+// run through the root layout's `template: "%s | Grounded Cars"` and repeat
 // the name; `title.absolute` is Next.js's documented way to opt one page out
 // of the parent template entirely.
 export const metadata: Metadata = {
@@ -54,7 +54,7 @@ export default function AboutUsPage() {
               market evolved, so did the vision. The platform expanded beyond project cars to
               include clean locally used vehicles, quality pre-owned cars, and fresh imports.
             </p>
-            <p>Today, that vision continues through Car Marketplace.</p>
+            <p>Today, that vision continues through Grounded Cars.</p>
           </div>
         </section>
 

@@ -4,8 +4,8 @@ import { getPublishedServiceBySlug } from "@/server/services/service-catalog-ser
 import { isMpesaConfigured } from "@/lib/mpesa";
 
 export const metadata = {
-  title: "Home Repairs",
-  description: "On-site mechanical repair and maintenance from certified technicians, wherever your car is.",
+  title: "On-Site Car Repairs in Kenya",
+  description: "On-site mechanical repair and maintenance from certified technicians, wherever your car is in Kenya — arranged through Grounded Cars.",
   alternates: { canonical: "/services/home-repairs" },
 };
 

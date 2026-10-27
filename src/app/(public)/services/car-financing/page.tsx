@@ -4,8 +4,8 @@ import { getPublishedServiceBySlug } from "@/server/services/service-catalog-ser
 import { isMpesaConfigured } from "@/lib/mpesa";
 
 export const metadata = {
-  title: "Car Financing",
-  description: "Connect with trusted lending partners for flexible, fast car financing across Kenya.",
+  title: "Car Financing in Kenya",
+  description: "Connect with trusted lending partners for flexible, fast car financing across Kenya, through Grounded Cars.",
   alternates: { canonical: "/services/car-financing" },
 };
 

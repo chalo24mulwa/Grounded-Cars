@@ -4,8 +4,8 @@ import { getPublishedServiceBySlug } from "@/server/services/service-catalog-ser
 import { isMpesaConfigured } from "@/lib/mpesa";
 
 export const metadata = {
-  title: "Car Valuation",
-  description: "Get an accurate, market-based valuation of your vehicle before you sell or trade it in.",
+  title: "Car Valuation in Kenya",
+  description: "Get an accurate, market-based valuation of your vehicle in Kenya before you sell or trade it in — through Grounded Cars.",
   alternates: { canonical: "/services/car-valuation" },
 };
 

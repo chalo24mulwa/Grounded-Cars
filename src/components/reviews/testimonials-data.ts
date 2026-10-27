@@ -21,7 +21,7 @@ export const TESTIMONIALS: Testimonial[] = [
     location: "Nairobi",
     rating: 5,
     quote:
-      "I sold my Toyota Axio within a week of listing it on Car Marketplace. The process was so simple and I got serious buyers almost immediately.",
+      "I sold my Toyota Axio within a week of listing it on Grounded Cars. The process was so simple and I got serious buyers almost immediately.",
   },
   {
     id: "otieno-odhiambo",
@@ -61,7 +61,7 @@ export const TESTIMONIALS: Testimonial[] = [
     location: "Nairobi",
     rating: 5,
     quote:
-      "The Sponsor My Listing feature really works — my pickup got way more views once I boosted it, and it sold within days.",
+      "Featuring my listing really works — my pickup got way more views once I boosted it, and it sold within days.",
   },
   {
     id: "grace-nyambura",
@@ -93,7 +93,7 @@ export const TESTIMONIALS: Testimonial[] = [
     location: "Nyeri",
     rating: 5,
     quote:
-      "Car Marketplace helped me find a genuine fresh-import Toyota Premio at a fair price. The whole process felt transparent.",
+      "Grounded Cars helped me find a genuine fresh-import Toyota Premio at a fair price. The whole process felt transparent.",
   },
   {
     id: "sharon-wambui",
@@ -125,7 +125,7 @@ export const TESTIMONIALS: Testimonial[] = [
     location: "Kisumu",
     rating: 5,
     quote:
-      "I've bought two vehicles through Car Marketplace for my taxi business. Both times the listings were accurate and the sellers genuine.",
+      "I've bought two vehicles through Grounded Cars for my taxi business. Both times the listings were accurate and the sellers genuine.",
   },
   {
     id: "ann-wangari",
@@ -189,7 +189,7 @@ export const TESTIMONIALS: Testimonial[] = [
     location: "Nairobi",
     rating: 5,
     quote:
-      "I financed my first car through a partner linked from Car Marketplace. The whole experience felt professional and secure.",
+      "I financed my first car through a partner linked from Grounded Cars. The whole experience felt professional and secure.",
   },
   {
     id: "rose-wanjiku",

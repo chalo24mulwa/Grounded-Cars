@@ -4,8 +4,8 @@ import { getPublishedServiceBySlug } from "@/server/services/service-catalog-ser
 import { isMpesaConfigured } from "@/lib/mpesa";
 
 export const metadata = {
-  title: "Car Tracking",
-  description: "Install GPS tracking on your vehicle for real-time location, theft alerts, and driver insights.",
+  title: "Car Tracking in Kenya",
+  description: "Install GPS tracking on your vehicle in Kenya for real-time location, theft alerts, and driver insights — via Grounded Cars.",
   alternates: { canonical: "/services/car-tracking" },
 };
 

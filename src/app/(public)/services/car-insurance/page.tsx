@@ -4,7 +4,7 @@ import { InsurancePolicyCard } from "@/components/insurance/InsurancePolicyCard"
 import { siteConfig } from "@/config/site";
 
 export const metadata = {
-  title: "Car Insurance Cover",
+  title: "Car Insurance in Kenya",
   description:
     "Grounded Cars has partnered with reliable insurance companies to help you get Third-Party, Commercial, and Comprehensive motor insurance — plans from as low as KES 1,000.",
   alternates: { canonical: "/services/car-insurance" },

@@ -4,8 +4,8 @@ import { getPublishedServiceBySlug } from "@/server/services/service-catalog-ser
 import { isMpesaConfigured } from "@/lib/mpesa";
 
 export const metadata = {
-  title: "Pre-Purchase Inspection",
-  description: "Get a certified mechanic to inspect a car before you buy it — engine, chassis, electricals, and accident history.",
+  title: "Pre-Purchase Car Inspection in Kenya",
+  description: "Get a certified mechanic in Kenya to inspect a car before you buy it — engine, chassis, electricals, and accident history — arranged through Grounded Cars.",
   alternates: { canonical: "/services/pre-purchase-inspection" },
 };
 
