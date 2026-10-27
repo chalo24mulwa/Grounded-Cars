@@ -69,7 +69,18 @@ function clearStore(store: Store): void {
 // never loaded from disk — even if another server process wrote them out
 // later — so a restart can never bring back data from before a write.
 // Everything here is best effort: any disk error just means no persistence.
-const PERSIST_DIR = process.env.SWR_CACHE_DIR || path.join(os.tmpdir(), "car-marketplace-swr-cache");
+//
+// The "-v2" suffix (and renamed base) is deliberate, not cosmetic: a schema
+// migration applied directly against the database (via `prisma migrate
+// deploy` from a terminal, bypassing the app's own Prisma client in
+// src/lib/prisma.ts) doesn't go through invalidateAllSwrCaches(), so an
+// entry cached before such a migration can keep being restored from disk
+// indefinitely — found when a stale pre-"classifications"-column listing
+// object, shaped before that column existed, crashed every page that
+// rendered a CarCard. Renaming the directory orphans every pre-existing
+// cache file at once (they're just never looked up again) rather than
+// relying on deleting them by hand on the server.
+const PERSIST_DIR = process.env.SWR_CACHE_DIR || path.join(os.tmpdir(), "grounded-cars-swr-cache-v2");
 const STAMP_FILE = path.join(PERSIST_DIR, "invalidated-at");
 const PERSIST_DEBOUNCE_MS = 2_000;
 

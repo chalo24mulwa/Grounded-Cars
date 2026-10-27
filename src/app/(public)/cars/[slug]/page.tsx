@@ -96,7 +96,7 @@ function buildDescription(listing: {
 }, isSold: boolean): string {
   const priceText = `${listing.currency} ${Number(listing.price).toLocaleString()}`;
   const locationText = listing.location ? ` in ${listing.location}` : "";
-  const classText = listing.classifications.length ? ` ${classificationText(listing.classifications)}` : "";
+  const classText = listing.classifications?.length ? ` ${classificationText(listing.classifications)}` : "";
 
   if (isSold) {
     // Deliberately does not say "for sale" / "available now" — a sold
@@ -140,7 +140,7 @@ export async function generateMetadata({
   // H1 is unaffected — it still shows the seller's own title as-is.
   // Only the classification the seller actually saved is ever used here —
   // never guessed from the title/description text.
-  const classSuffix = listing.classifications.length ? ` ${classificationText(listing.classifications)}` : "";
+  const classSuffix = listing.classifications?.length ? ` ${classificationText(listing.classifications)}` : "";
   const title = isSold
     ? `${listing.year} ${listing.make} ${listing.model} — Sold`
     : `${listing.year} ${listing.make} ${listing.model}${classSuffix} for Sale${listing.location ? ` in ${listing.location}` : " in Kenya"}`;
@@ -277,7 +277,7 @@ export default async function CarDetailPage({
     // it there would misrepresent some listings. This way search engines
     // get the real saved classification without an inaccurate claim either
     // way, and only for listings that actually have one saved.
-    ...(listing.classifications.length
+    ...(listing.classifications?.length
       ? {
           additionalProperty: listing.classifications.map((c) => ({
             "@type": "PropertyValue",

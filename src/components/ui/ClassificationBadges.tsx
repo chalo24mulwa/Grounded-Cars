@@ -20,7 +20,11 @@ export function ClassificationBadges({
   classifications: VehicleClassification[];
   corner?: boolean;
 }) {
-  if (classifications.length === 0) return null;
+  // `classifications` defaults to `[]` in the schema, but a stale cached
+  // listing object built before this field existed could still hand this
+  // component `undefined` — guarded so that renders as "no badges" rather
+  // than crashing the page.
+  if (!classifications?.length) return null;
 
   if (corner) {
     return (
