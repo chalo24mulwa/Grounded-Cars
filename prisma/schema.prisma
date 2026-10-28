@@ -165,6 +165,7 @@ model User {
   auditLogEntries        AuditLog[]              @relation("AuditActor")
   statusChangesPerformed ListingStatusHistory[]  @relation("StatusChangedBy")
   passwordResetTokens    PasswordResetToken[]
+  mobileRefreshTokens    MobileRefreshToken[]
   featuredSubscriptions  FeaturedSubscription[]
   paymentTransactions    PaymentTransaction[]
   eventsCreated          Event[]
@@ -243,6 +244,30 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+// Mobile apps (Android/iOS) have no browser cookie jar, so they can't hold
+// the httpOnly session Auth.js issues the website. This backs a parallel,
+// additive token exchange instead: login mints a short-lived JWT access
+// token (verified in-memory, never stored) plus a long-lived refresh token,
+// of which only a SHA-256 hash is ever persisted here — same at-rest
+// convention as PasswordResetToken above. Refresh rotates the row (new
+// token minted, old one revoked) rather than reusing it, and re-checks
+// User.status on every rotation, so a suspension takes effect within one
+// refresh cycle instead of waiting for the token to expire on its own.
+model MobileRefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  deviceInfo String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mobile_refresh_tokens")
 }
 
 // ---------------------------------------------------------------------------

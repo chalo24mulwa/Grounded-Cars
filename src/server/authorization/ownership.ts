@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { mobileSessionContext } from "@/server/authorization/mobile-session-context";
 import type { UserRole } from "@prisma/client";
 
 // ----------------------------------------------------------------------------
@@ -68,19 +69,29 @@ const getAccountStatus = cache((userId: string) =>
  * (everything goes through requireAuth or requireRole, which calls this) —
  * one extra indexed lookup by primary key per call, a deliberate tradeoff
  * for real-time suspension enforcement.
+ *
+ * Mobile requests carry a Bearer token instead of the httpOnly session
+ * cookie auth() reads, so they can't resolve a session through auth() at
+ * all. withMobileAuth (src/server/mobile/with-mobile-auth.ts) verifies that
+ * token and runs the handler inside mobileSessionContext.run(user, ...) —
+ * when present, that identity is used instead of calling auth(). Every
+ * existing web request never enters that AsyncLocalStorage, so getStore()
+ * is undefined and this falls through to auth() exactly as before; the
+ * live-status re-check below still runs either way.
  */
 export async function requireAuth() {
-  const session = await auth();
-  if (!session?.user) {
+  const mobileUser = mobileSessionContext.getStore();
+  const sessionUser = mobileUser ?? (await auth())?.user;
+  if (!sessionUser) {
     throw new AuthenticationError();
   }
 
-  const dbUser = await getAccountStatus(session.user.id);
+  const dbUser = await getAccountStatus(sessionUser.id);
   if (!dbUser || dbUser.status !== "ACTIVE") {
     throw new AccountSuspendedError();
   }
 
-  return session.user;
+  return sessionUser;
 }
 
 /** Requires authentication AND that the user holds one of the given roles. */
