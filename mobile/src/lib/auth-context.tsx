@@ -15,6 +15,10 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (input: { name: string; email: string; phone: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-mints the token pair so a server-side change (e.g. becomeSeller()'s
+   * BUYER -> SELLER upgrade) is reflected in the access token's role claim
+   * immediately, instead of waiting up to 15 minutes for it to expire. */
+  refreshUser: () => Promise<void>;
   /** Surfaced so screens can show the exact server-chosen message. */
   error: string | null;
 };
@@ -113,9 +117,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }
 
+  async function refreshUser() {
+    await attemptRefresh();
+  }
+
+  // login/register/logout/refreshUser all close over stable setState
+  // setters only, so they never need to be in this list to stay correct.
   const value = useMemo(
-    () => ({ status, user, login, register, logout, error }),
-    [status, user, error]
+    () => ({ status, user, login, register, logout, refreshUser, error }),
+    [status, user, error] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

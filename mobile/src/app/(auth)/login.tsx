@@ -66,6 +66,12 @@ export default function LoginScreen() {
         {submitting ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.buttonText}>Log in</ThemedText>}
       </Pressable>
 
+      <Link href="/forgot-password" style={styles.forgotLink}>
+        <ThemedText themeColor="brand" type="small">
+          Forgot your password?
+        </ThemedText>
+      </Link>
+
       <View style={styles.footer}>
         <ThemedText themeColor="textSecondary">Don&apos;t have an account? </ThemedText>
         <Link href="/register">
@@ -99,6 +105,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  forgotLink: { alignSelf: 'center', marginTop: Spacing.three },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.five },
   link: { fontWeight: '700' },
 });

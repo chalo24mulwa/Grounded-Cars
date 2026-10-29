@@ -24,6 +24,17 @@ function AppContent() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="listing/[slug]" options={{ headerShown: true, title: 'Listing' }} />
+      <Stack.Screen name="contact" options={{ headerShown: true, title: 'Contact Us' }} />
+      <Stack.Screen name="account/edit" options={{ headerShown: true, title: 'Edit Account' }} />
+      <Stack.Screen name="favorites" options={{ headerShown: true, title: 'Favorites' }} />
+      <Stack.Screen name="events/index" options={{ headerShown: true, title: 'Events' }} />
+      <Stack.Screen name="events/[id]" options={{ headerShown: true, title: 'Event' }} />
+      <Stack.Screen name="csr/index" options={{ headerShown: true, title: 'CSR Initiatives' }} />
+      <Stack.Screen name="csr/[slug]" options={{ headerShown: true, title: 'Initiative' }} />
+      <Stack.Screen name="services/index" options={{ headerShown: true, title: 'Services' }} />
+      <Stack.Screen name="services/[slug]" options={{ headerShown: true, title: 'Service' }} />
+      <Stack.Screen name="insurance/index" options={{ headerShown: true, title: 'Insurance' }} />
+      <Stack.Screen name="insurance/[id]" options={{ headerShown: true, title: 'Policy' }} />
     </Stack>
   );
 }

@@ -90,3 +90,49 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   if (res.status === 204) return undefined as T;
   return (await parseJsonSafe(res)) as T;
 }
+
+/**
+ * Multipart upload variant of apiFetch — used only for listing photo
+ * uploads. Deliberately never sets Content-Type itself: fetch/React
+ * Native's multipart implementation must generate the boundary, which it
+ * can only do when it owns the header. Same auth-header/refresh-on-401
+ * retry behavior as apiFetch.
+ */
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  return apiUploadWithMethod(path, formData, 'POST');
+}
+
+/**
+ * Same as apiUpload, but lets the caller choose POST/PATCH — for admin
+ * content-management screens whose "create" and "update" routes are both
+ * multipart (text fields + an optional replacement image) but differ only
+ * in HTTP method.
+ */
+export async function apiUploadWithMethod<T>(
+  path: string,
+  formData: FormData,
+  method: 'POST' | 'PATCH'
+): Promise<T> {
+  async function doFetch(): Promise<Response> {
+    const headers: Record<string, string> = {};
+    if (currentAccessToken) headers.Authorization = `Bearer ${currentAccessToken}`;
+    return fetch(`${API_BASE_URL}${path}`, { method, headers, body: formData });
+  }
+
+  let res = await doFetch();
+
+  if (res.status === 401 && refreshHandler) {
+    const newToken = await refreshHandler();
+    if (!newToken) throw new SessionExpiredError();
+    res = await doFetch();
+    if (res.status === 401) throw new SessionExpiredError();
+  }
+
+  if (!res.ok) {
+    const data = (await parseJsonSafe(res)) as { error?: string } | null;
+    throw new ApiError(res.status, data?.error ?? 'Something went wrong. Please try again.');
+  }
+
+  if (res.status === 204) return undefined as T;
+  return (await parseJsonSafe(res)) as T;
+}

@@ -4,9 +4,12 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { FavoriteButtonOverlay } from '@/components/favorite-button';
 import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/lib/auth-context';
 import { Spacing } from '@/constants/theme';
 import { getListings, type Classification, type Listing } from '@/lib/listings-api';
+import { getMyFavorites } from '@/lib/favorites-api';
 
 const CLASSIFICATIONS: { value: Classification; label: string }[] = [
   { value: 'GROUNDED', label: 'Grounded' },
@@ -23,6 +26,13 @@ function formatPrice(price: string, currency: string): string {
 export default function BrowseScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { status } = useAuth();
+  const { data: favorites } = useQuery({
+    queryKey: ['favorites'],
+    queryFn: getMyFavorites,
+    enabled: status === 'authenticated',
+  });
+  const favoriteIds = new Set((favorites ?? []).map((f) => f.listingId));
   const [searchInput, setSearchInput] = useState('');
   const [q, setQ] = useState('');
   const [classifications, setClassifications] = useState<Classification[]>([]);
@@ -91,7 +101,14 @@ export default function BrowseScreen() {
           onRefresh={refetch}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<ThemedText style={styles.empty}>No vehicles match your search.</ThemedText>}
-          renderItem={({ item }) => <ListingCard listing={item} onPress={() => router.push(`/listing/${item.slug}`)} />}
+          renderItem={({ item }) => (
+            <ListingCard
+              listing={item}
+              onPress={() => router.push(`/listing/${item.slug}`)}
+              showFavorite={status === 'authenticated'}
+              favorited={favoriteIds.has(item.id)}
+            />
+          )}
           ListFooterComponent={
             data && data.totalPages > page ? (
               <Pressable style={[styles.loadMore, { borderColor: theme.brand }]} onPress={() => setPage((p) => p + 1)}>
@@ -105,7 +122,17 @@ export default function BrowseScreen() {
   );
 }
 
-function ListingCard({ listing, onPress }: { listing: Listing; onPress: () => void }) {
+function ListingCard({
+  listing,
+  onPress,
+  showFavorite,
+  favorited,
+}: {
+  listing: Listing;
+  onPress: () => void;
+  showFavorite?: boolean;
+  favorited?: boolean;
+}) {
   const theme = useTheme();
   const primaryImage = listing.images.find((img) => img.isPrimary) ?? listing.images[0];
 
@@ -119,6 +146,11 @@ function ListingCard({ listing, onPress }: { listing: Listing; onPress: () => vo
       ) : (
         <View style={[styles.cardImage, styles.cardImagePlaceholder, { backgroundColor: theme.backgroundSelected }]} />
       )}
+      {showFavorite ? (
+        <View style={styles.cardFavorite}>
+          <FavoriteButtonOverlay listingId={listing.id} favorited={Boolean(favorited)} />
+        </View>
+      ) : null}
       <View style={styles.cardBody}>
         <ThemedText type="smallBold" numberOfLines={1}>
           {listing.title}
@@ -154,8 +186,9 @@ const styles = StyleSheet.create({
   error: { textAlign: 'center', marginTop: Spacing.six, color: '#D14343' },
   empty: { textAlign: 'center', marginTop: Spacing.six },
   list: { paddingBottom: Spacing.six },
-  card: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, marginBottom: Spacing.three, overflow: 'hidden' },
+  card: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, marginBottom: Spacing.three, overflow: 'hidden', position: 'relative' },
   cardImage: { width: 110, height: 100 },
+  cardFavorite: { position: 'absolute', top: 6, left: 6 },
   cardImagePlaceholder: {},
   cardBody: { flex: 1, padding: Spacing.three, gap: 2 },
   price: { fontWeight: '700' },
